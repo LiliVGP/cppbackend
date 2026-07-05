@@ -36,5 +36,5 @@ target_link_libraries(game_server PRIVATE
   Threads::Threads 
   ${Boost_LIBRARIES}
   ${CONAN_LIBS}
-  boost_program_options
+  boost::program_options
   )
