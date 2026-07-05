@@ -35,6 +35,5 @@ add_executable(game_server
 
 target_link_libraries(game_server PRIVATE
     Threads::Threads
-    ${CONAN_LIBS}
-    CONAN_PKG::boost
+    ${Boost_LIBRARIES}
 )
