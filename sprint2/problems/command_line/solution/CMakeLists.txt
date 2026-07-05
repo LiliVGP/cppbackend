@@ -32,4 +32,9 @@ add_executable(game_server
     src/authorization.h
     src/ticker.h
 )
-target_link_libraries(game_server PRIVATE Threads::Threads ${Boost_LIBRARIES})
+target_link_libraries(game_server PRIVATE 
+  Threads::Threads 
+  ${Boost_LIBRARIES}
+  ${CONAN_LIBS}
+  boost_program_options
+  )
