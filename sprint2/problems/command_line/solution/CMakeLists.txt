@@ -33,12 +33,8 @@ add_executable(game_server
     src/ticker.h
 )
 
-set(BOOST_PROGRAM_OPTIONS_LIB
-    /root/.conan2/p/b/boost8438d9f283faf/p/lib/libboost_program_options.a
-)
-
 target_link_libraries(game_server PRIVATE
     Threads::Threads
     ${CONAN_LIBS}
-    ${BOOST_PROGRAM_OPTIONS_LIB}
+    CONAN_PKG::boost
 )
