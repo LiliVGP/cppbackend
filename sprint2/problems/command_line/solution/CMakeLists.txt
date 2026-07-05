@@ -37,5 +37,5 @@ add_executable(game_server
 target_link_libraries(game_server PRIVATE
     Threads::Threads
     ${Boost_LIBRARIES}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY}
+    boost_program_options
 )
