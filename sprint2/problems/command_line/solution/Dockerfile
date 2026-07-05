@@ -4,7 +4,8 @@ RUN apt update && \
     apt install -y \
       python3-pip \
       cmake \
-      git && \
+      git \
+      libboost-program-options-dev && \
     pip3 install conan==1.*
 
 COPY conanfile.txt /app/
