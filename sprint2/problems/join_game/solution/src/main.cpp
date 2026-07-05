@@ -1,0 +1,101 @@
+#include "sdk.h"
+//
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <cstdlib> // для std::getenv
+
+#include "json_loader.h"
+#include "request_handler.h"
+#include "http_server.h"
+#include "player.h" // НЕ ЗАБУДЬТЕ ДОБАВИТЬ ЭТОТ ИНКЛУД
+
+using namespace std::literals;
+namespace net = boost::asio;
+namespace sys = boost::system;
+
+namespace {
+
+    template <typename Fn>
+    void RunWorkers(unsigned n, const Fn& fn) {
+        n = std::max(1u, n);
+        std::vector<std::jthread> workers;
+        workers.reserve(n - 1);
+        while (--n) {
+            workers.emplace_back(fn);
+        }
+        fn();
+    }
+
+}  // namespace
+
+int main(int argc, const char* argv[]) {
+    // Ожидаем два аргумента: путь к конфигу и путь к статике
+    // Но для совместимости с Docker-тестами, если передан только один,
+    // путь к статике берём из переменной окружения STATIC_ROOT
+    if (argc < 2) {
+        std::cerr << "Usage: game_server <game-config-json> [<static-root>]"sv << std::endl;
+        std::cerr << "If static-root is omitted, set STATIC_ROOT environment variable."sv << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    try {
+        const std::string config_path = argv[1];
+        std::string static_root_str;
+
+        if (argc >= 3) {
+            static_root_str = argv[2];
+        }
+        else {
+            // Берём из переменной окружения
+            const char* env_static = std::getenv("STATIC_ROOT");
+            if (env_static) {
+                static_root_str = env_static;
+            }
+            else {
+                std::cerr << "Error: static root not provided. Set STATIC_ROOT environment variable."sv << std::endl;
+                return EXIT_FAILURE;
+            }
+        }
+
+        // 1. Загружаем игру (возвращаемое значение присваиваем)
+        model::Game game = json_loader::LoadGame(config_path);
+        
+        // 2. Создаём контейнер для игроков
+        model::Players players;
+
+        std::filesystem::path static_root = static_root_str;
+
+        const unsigned num_threads = std::thread::hardware_concurrency();
+        net::io_context ioc(num_threads);
+
+        net::signal_set signals(ioc, SIGINT, SIGTERM);
+        signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
+            if (!ec) {
+                ioc.stop();
+            }
+            });
+
+        // 3. Передаём все три аргумента в RequestHandler
+        http_handler::RequestHandler handler{ game, static_root, players };
+
+        const auto address = net::ip::make_address("0.0.0.0");
+        constexpr net::ip::port_type port = 8080;
+
+        http_server::ServeHttp(ioc, { address, port }, [&handler](auto&& req, auto&& send) {
+            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+            });
+
+        std::cout << "Server has started..."sv << std::endl;
+
+        RunWorkers(std::max(1u, num_threads), [&ioc] {
+            ioc.run();
+            });
+    }
+    catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+}
