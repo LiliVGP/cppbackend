@@ -7,13 +7,10 @@ include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
 include_directories(${CONAN_INCLUDE_DIRS})
-set(Boost_ROOT ${CONAN_BOOST_ROOT})
+
+set(BOOST_ROOT ${CONAN_BOOST_ROOT})
 
 find_package(Boost 1.78.0 REQUIRED COMPONENTS program_options)
-
-if(Boost_FOUND)
-  include_directories(${Boost_INCLUDE_DIRS})
-endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
