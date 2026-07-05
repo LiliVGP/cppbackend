@@ -1,20 +1,18 @@
-FROM gcc:12 as build
+FROM gcc:11.3 as build
 
 RUN apt update && \
     apt install -y \
       python3-pip \
       cmake \
       git && \
-    pip3 install conan
+    pip3 install conan==1.*
 
 COPY conanfile.txt /app/
 RUN mkdir /app/build && cd /app/build && \
-    conan profile detect && \
     conan install .. --build=missing
 
 COPY ./src /app/src
 COPY CMakeLists.txt /app/
-
 RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
