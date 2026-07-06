@@ -1,5 +1,9 @@
 [requires]
 boost/1.78.0
 
+[options]
+boost/*:shared=False
+boost/*:header_only=False
+
 [generators]
 cmake_multi
