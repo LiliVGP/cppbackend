@@ -5,7 +5,7 @@ RUN apt update && \
       python3-pip \
       cmake \
       git && \
-    pip3 install conan==1.52.0
+    pip3 install conan==1.64.1
 
 COPY conanfile.txt /app/
 RUN mkdir /app/build && cd /app/build && \
