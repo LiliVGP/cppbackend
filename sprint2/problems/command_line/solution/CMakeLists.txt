@@ -14,9 +14,6 @@ set(Boost_USE_STATIC_LIBS ON)
 set(Boost_INCLUDE_DIR ${CONAN_INCLUDE_DIRS})
 set(Boost_LIBRARY_DIR ${CONAN_LIB_DIRS})
 
-# Находим Boost через стандартный модуль CMake
-find_package(Boost REQUIRED COMPONENTS program_options)
-
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
