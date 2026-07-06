@@ -4,7 +4,7 @@ project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+conan_basic_setup(TARGETS)
 
 include_directories(${CONAN_INCLUDE_DIRS})
 
@@ -32,5 +32,5 @@ add_executable(game_server
 
 target_link_libraries(game_server PRIVATE
     Threads::Threads
-    ${CONAN_LIBS}
+    CONAN_PKG::boost
 )
