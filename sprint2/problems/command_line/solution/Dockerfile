@@ -5,9 +5,7 @@ RUN apt update && \
       python3-pip \
       cmake \
       git \
-      libboost-program-options-dev \
-      libboost-asio-dev \
-      libboost-beast-dev && \
+      libboost-all-dev && \
     pip3 install conan==1.*
 
 COPY ./src /app/src
