@@ -28,5 +28,4 @@ add_executable(game_server
     src/ticker.h
 )
 
-target_include_directories(game_server PRIVATE CONAN_PKG::boost)
 target_link_libraries(game_server PRIVATE CONAN_PKG::boost Threads::Threads)
