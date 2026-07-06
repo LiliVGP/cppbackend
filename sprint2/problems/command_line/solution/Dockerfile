@@ -5,8 +5,10 @@ RUN apt update && \
       python3-pip \
       cmake \
       git \
-      libboost-all-dev && \
-    pip3 install conan==1.*  # если нужен для других зависимостей, но не для Boost
+      libboost-program-options-dev \
+      libboost-system-dev \
+      libboost-filesystem-dev && \
+    pip3 install conan==1.*
 
 COPY ./src /app/src
 COPY CMakeLists.txt /app/
