@@ -1,7 +1,8 @@
-FROM gcc:11.3 as build
+FROM ubuntu:22.04 as build
 
 RUN apt update && \
     apt install -y \
+      build-essential \
       python3-pip \
       cmake \
       git && \
@@ -9,6 +10,7 @@ RUN apt update && \
 
 COPY conanfile.txt /app/
 RUN mkdir /app/build && cd /app/build && \
+    conan profile detect && \
     conan install .. --build=missing
 
 COPY ./src /app/src
