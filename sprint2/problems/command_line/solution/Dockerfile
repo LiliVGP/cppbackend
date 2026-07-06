@@ -4,17 +4,14 @@ RUN apt update && \
     apt install -y \
       python3-pip \
       cmake \
-      git && \
-    pip3 install conan==1.64.1
-
-COPY conanfile.txt /app/
-RUN mkdir /app/build && cd /app/build && \
-    conan install .. --build=missing
+      git \
+      libboost-all-dev && \
+    pip3 install conan==1.*  # если нужен для других зависимостей, но не для Boost
 
 COPY ./src /app/src
 COPY CMakeLists.txt /app/
 
-RUN cd /app/build && \
+RUN mkdir /app/build && cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 

@@ -3,10 +3,9 @@ cmake_minimum_required(VERSION 3.11)
 project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
+find_package(Boost 1.78.0 REQUIRED)
 
-include_directories(${CONAN_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -30,8 +29,7 @@ add_executable(game_server
     src/ticker.h
 )
 
-# ✅ Явный путь к библиотеке boost_program_options
 target_link_libraries(game_server PRIVATE
     Threads::Threads
-    /root/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/lib/libboost_program_options.a
+    ${Boost_LIBRARIES}
 )
