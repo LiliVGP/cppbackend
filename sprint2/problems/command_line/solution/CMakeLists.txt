@@ -4,9 +4,12 @@ project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
+conan_basic_setup()
 
-include_directories(${CONAN_INCLUDE_DIRS})
+set(BOOST_ROOT ${CONAN_BOOST_ROOT})
+find_package(Boost 1.78.0 REQUIRED COMPONENTS program_options)
+
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -32,5 +35,5 @@ add_executable(game_server
 
 target_link_libraries(game_server PRIVATE
     Threads::Threads
-    CONAN_PKG::boost
+    ${Boost_LIBRARIES}
 )
