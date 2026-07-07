@@ -19,9 +19,6 @@ RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-# ПРОВЕРКА: убедимся, что файл существует
-RUN ls -la /app/build/bin || ls -la /app/build
-
 FROM ubuntu:22.04 as run
 
 RUN apt update && \
@@ -32,11 +29,9 @@ RUN groupadd -r www && useradd -r -g www www
 
 RUN mkdir -p /app/data && chown -R www:www /app
 
-# Копируем бинарник, где бы он ни лежал
-COPY --from=build /app/build/bin/game_server /app/ || true
-COPY --from=build /app/build/game_server /app/ || true
+# Единственная строка копирования — именно так, как вы попросили
+COPY --from=build /app/build/game_server /app/
 
-# Копируем остальное
 COPY ./data /app/data
 COPY ./static /app/static
 
@@ -45,4 +40,5 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
+# Правильный запуск с флагами
 ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
