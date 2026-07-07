@@ -19,7 +19,6 @@ RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-# --- run stage ---
 FROM ubuntu:22.04 as run
 
 RUN apt update && \
@@ -30,8 +29,7 @@ RUN groupadd -r www && useradd -r -g www www
 
 RUN mkdir -p /app/data && chown -R www:www /app
 
-# Универсальное копирование всей папки сборки
-COPY --from=build /app/build /app/build
+COPY --from=build /app/build/bin/game_server /app/
 COPY ./data /app/data
 COPY ./static /app/static
 
@@ -40,4 +38,5 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
-ENTRYPOINT ["/app/build/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
+# ИСПРАВЛЕНИЕ: правильный запуск с флагами
+ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
