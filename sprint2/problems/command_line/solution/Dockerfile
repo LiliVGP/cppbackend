@@ -7,13 +7,15 @@ RUN apt update && \
       git && \
     pip3 install conan==1.64.1
 
+# Сразу копируем всё необходимое
 COPY conanfile.txt /app/
+COPY CMakeLists.txt /app/
+COPY ./src /app/src
+
 RUN mkdir /app/build && cd /app/build && \
     conan profile new default --detect && \
-    conan install .. --build=missing
-
-COPY ./src /app/src
-COPY CMakeLists.txt /app/
+    # ГЛАВНОЕ ИСПРАВЛЕНИЕ: добавляем параметры для Linux ABI и статической сборки
+    conan install .. --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
 
 RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
@@ -40,4 +42,5 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
-ENTRYPOINT ["/app/game_server", "/app/data/config.json"]
+# ИСПРАВЛЕНИЕ: правильный запуск с параметрами
+ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
