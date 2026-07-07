@@ -7,33 +7,31 @@ RUN apt update && \
       git && \
     pip3 install conan==1.64.1
 
-# Сразу копируем всё необходимое
 COPY conanfile.txt /app/
 COPY CMakeLists.txt /app/
 COPY ./src /app/src
 
 RUN mkdir /app/build && cd /app/build && \
     conan profile new default --detect && \
-    # ГЛАВНОЕ ИСПРАВЛЕНИЕ: добавляем параметры для Linux ABI и статической сборки
     conan install .. --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
 
 RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
+# --- run stage ---
 FROM ubuntu:22.04 as run
 
 RUN apt update && \
-    apt install -y \
-     ca-certificates && \
+    apt install -y ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r www && useradd -r -g www www
 
-RUN mkdir -p /app/data && \
-    chown -R www:www /app
+RUN mkdir -p /app/data && chown -R www:www /app
 
-COPY --from=build /app/build/bin/game_server /app/
+# Универсальное копирование всей папки сборки
+COPY --from=build /app/build /app/build
 COPY ./data /app/data
 COPY ./static /app/static
 
@@ -42,5 +40,4 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
-# ИСПРАВЛЕНИЕ: правильный запуск с параметрами
-ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
+ENTRYPOINT ["/app/build/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
