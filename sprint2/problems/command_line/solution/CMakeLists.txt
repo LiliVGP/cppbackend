@@ -28,5 +28,7 @@ add_executable(game_server
     src/ticker.h
 )
 
-# ВСЁ В ОДНОЙ СТРОКЕ — и include-пути, и линковка
+# ЭТА СТРОКА РЕШАЕТ ВСЁ:
+# 1. Она подключает include-пути Boost.
+# 2. Она линкует все необходимые статические библиотеки Boost, включая program_options.
 target_link_libraries(game_server PRIVATE CONAN_PKG::boost Threads::Threads)
