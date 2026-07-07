@@ -3,16 +3,8 @@ cmake_minimum_required(VERSION 3.11)
 project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
-# Подключаем сгенерированный Conan файл
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
-
-# Указываем FindBoost.cmake, что нужно искать статические библиотеки
-set(Boost_USE_STATIC_LIBS ON)
-
-# Явно передаём пути к Boost, которые предоставил Conan
-set(Boost_INCLUDE_DIR ${CONAN_INCLUDE_DIRS})
-set(Boost_LIBRARY_DIR ${CONAN_LIB_DIRS})
+include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
+conan_basic_setup(TARGETS)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -36,5 +28,5 @@ add_executable(game_server
     src/ticker.h
 )
 
-# Линкуем с найденным Boost и Threads
-target_link_libraries(game_server PRIVATE Boost::program_options Threads::Threads)
+# ВСЁ В ОДНОЙ СТРОКЕ — и include-пути, и линковка
+target_link_libraries(game_server PRIVATE CONAN_PKG::boost Threads::Threads)

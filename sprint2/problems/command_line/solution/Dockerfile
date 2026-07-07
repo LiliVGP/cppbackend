@@ -2,7 +2,6 @@ FROM gcc:11.3 as build
 
 RUN apt update && \
     apt install -y \
-      build-essential \
       python3-pip \
       cmake \
       git && \
@@ -17,7 +16,7 @@ COPY ./src /app/src
 COPY CMakeLists.txt /app/
 
 RUN cd /app/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${CMAKE_BINARY_DIR}/Release/generators" .. && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
 FROM ubuntu:22.04 as run
