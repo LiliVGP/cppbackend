@@ -19,6 +19,9 @@ RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
+# ПРОВЕРКА: убедимся, что файл существует
+RUN ls -la /app/build/bin || ls -la /app/build
+
 FROM ubuntu:22.04 as run
 
 RUN apt update && \
@@ -29,7 +32,11 @@ RUN groupadd -r www && useradd -r -g www www
 
 RUN mkdir -p /app/data && chown -R www:www /app
 
-COPY --from=build /app/build/bin/game_server /app/
+# Копируем бинарник, где бы он ни лежал
+COPY --from=build /app/build/bin/game_server /app/ || true
+COPY --from=build /app/build/game_server /app/ || true
+
+# Копируем остальное
 COPY ./data /app/data
 COPY ./static /app/static
 
@@ -38,5 +45,4 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
-# ИСПРАВЛЕНИЕ: правильный запуск с флагами
 ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
