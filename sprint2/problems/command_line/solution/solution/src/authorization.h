@@ -4,6 +4,7 @@
 #include <boost/json.hpp>
 #include <optional>
 #include <string_view>
+#include <algorithm>
 
 namespace http_handler {
     namespace http = boost::beast::http;
@@ -22,15 +23,14 @@ namespace http_handler {
             return std::nullopt;
         }
 
-        std::string token_str(auth_value.substr(bearer_prefix.size()));
+        auto is_hex_digit = [](char c) -> bool {
+            return (c >= '0' && c <= '9') ||
+                   (c >= 'a' && c <= 'f') ||
+                   (c >= 'A' && c <= 'F');
+        };
 
-        if (token_str.length() != 32) {
+        if (!std::all_of(token_str.begin(), token_str.end(), is_hex_digit)) {
             return std::nullopt;
-        }
-        for (char c : token_str) {
-            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-                return std::nullopt;
-            }
         }
 
         return model::Token(std::move(token_str));
