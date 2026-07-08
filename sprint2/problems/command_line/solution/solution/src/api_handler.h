@@ -20,39 +20,39 @@ namespace http_handler {
         void operator()(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
             std::string_view target(req.target().data(), req.target().size());
 
-            if (target.find("/api/v1/") != 0) {
-                if (target.find("/api/") == 0) {
+            if (!target.starts_with("/api/v1/")) {
+                if (target.starts_with("/api/")) {
                     return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid API path", req.version(), req.keep_alive()));
                 }
                 return send(MakeErrorResponse(http::status::not_found, "notFound", "API endpoint not found", req.version(), req.keep_alive()));
             }
-
-            if (target == "/api/v1/maps") {
-                return HandleMaps(std::forward<decltype(req)>(req), std::forward<Send>(send));
-            }
-            else if (target.find("/api/v1/maps/") == 0) {
+            
+            if (target.starts_with("/api/v1/maps")) {
+                if (target == "/api/v1/maps") {
+                    return HandleMaps(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
                 std::string map_id = std::string(target.substr(std::string("/api/v1/maps/").size()));
-                return HandleMap(map_id, std::forward<decltype(req)>(req), std::forward<Send>(send));
+                    return HandleMap(map_id, std::forward<decltype(req)>(req), std::forward<Send>(send));
             }
-            else if (target == "/api/v1/game/join") {
-                return HandleJoinGame(std::forward<decltype(req)>(req), std::forward<Send>(send));
+
+                if (target == "/api/v1/game/join") {
+                    return HandleJoinGame(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
+                if (target == "/api/v1/game/players") {
+                    return HandlePlayers(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
+                if (target == "/api/v1/game/state") {
+                    return HandleGameState(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
+                if (target == "/api/v1/game/player/action") {
+                    return HandlePlayerAction(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
+                if (target == "/api/v1/game/tick") {
+                    return HandleGameTick(std::forward<decltype(req)>(req), std::forward<Send>(send));
+                }
+            
+                    return send(MakeErrorResponse(http::status::not_found, "notFound", "API endpoint not found", req.version(), req.keep_alive()));
             }
-            else if (target == "/api/v1/game/players") {
-                return HandlePlayers(std::forward<decltype(req)>(req), std::forward<Send>(send));
-            }
-            else if (target == "/api/v1/game/state") {
-                return HandleGameState(std::forward<decltype(req)>(req), std::forward<Send>(send));
-            }
-            else if (target == "/api/v1/game/player/action") {
-                return HandlePlayerAction(std::forward<decltype(req)>(req), std::forward<Send>(send));
-            }
-            else if (target == "/api/v1/game/tick") {
-                return HandleGameTick(std::forward<decltype(req)>(req), std::forward<Send>(send));
-            }
-            else {
-                return send(MakeErrorResponse(http::status::not_found, "notFound", "API endpoint not found", req.version(), req.keep_alive()));
-            }
-        }
 
     private:
         template <typename Body, typename Allocator, typename Send>
