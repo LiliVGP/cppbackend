@@ -16,8 +16,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 200
-COOLDOWN = 0.05
+SHOOT_COUNT = 500  # Ещё больше выстрелов
+COOLDOWN = 0.02    # Минимальная задержка
 
 
 def start_server():
@@ -52,22 +52,21 @@ def make_shots():
 
 server_cmd = start_server()
 
-# Запускаем сервер в фоне
+# Запускаем сервер
 server = run(server_cmd)
 time.sleep(1)
 
-# Запускаем perf record для всех процессов с высокой частотой и захватом стека
+# Запускаем perf record с высокой частотой
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-a', '-F', '99', '-g', '--', 'sleep', '10'],
+    ['perf', 'record', '-o', 'perf.data', '-a', '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
 )
 
 time.sleep(1)
 
-# Обстреливаем сервер
+# Обстреливаем
 make_shots()
 
-# Даём perf время собрать данные
 time.sleep(2)
 
 # Останавливаем perf
@@ -82,19 +81,25 @@ if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
     sys.exit(1)
 
-# Строим флеймграф с демангляцией
+# Строим флеймграф с принудительной демангляцией через c++filt
 flamegraph_dir = './FlameGraph'
 
-# Используем perf script с --demangle для автоматической демангляции
 perf_script = subprocess.Popen(
-    ['perf', 'script', '-i', 'perf.data', '--demangle'],
+    ['perf', 'script', '-i', 'perf.data'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL
+)
+
+cxxfilt = subprocess.Popen(
+    ['c++filt'],
+    stdin=perf_script.stdout,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
 
 stackcollapse = subprocess.Popen(
     [f'{flamegraph_dir}/stackcollapse-perf.pl'],
-    stdin=perf_script.stdout,
+    stdin=cxxfilt.stdout,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
@@ -107,6 +112,7 @@ flamegraph = subprocess.Popen(
 )
 
 perf_script.wait()
+cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
@@ -114,17 +120,23 @@ flamegraph.wait()
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
-        # Проверяем наличие RequestHandler в разных форматах
-        if ('RequestHandler' in content or
-            'http_handler::RequestHandler' in content or
+        # Проверяем наличие в разных форматах
+        if ('http_handler::RequestHandler' in content or
+            'RequestHandler' in content or
             '_ZN12http_handler14RequestHandler' in content):
             print("SUCCESS: graph.svg contains RequestHandler functions")
         else:
-            # Для отладки выведем первые строки
-            print("WARNING: RequestHandler not found. First 20 lines:")
+            # Выводим для отладки
+            print("WARNING: RequestHandler not found. First 30 lines:")
             lines = content.split('\n')
-            for i, line in enumerate(lines[:20]):
+            for i, line in enumerate(lines[:30]):
                 print(f"{i}: {line}")
+            
+            # Проверим, есть ли вообще какие-то функции
+            if 'function' in content.lower() or 'frame' in content.lower():
+                print("Graph contains some function names")
+            else:
+                print("Graph may not contain function names")
 else:
     print("ERROR: graph.svg was not created!")
     sys.exit(1)
