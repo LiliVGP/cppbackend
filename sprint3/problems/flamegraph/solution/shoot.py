@@ -52,34 +52,48 @@ def make_shots():
 
 server_cmd = start_server()
 
-# Запускаем сервер через perf record с флагом --call-graph dwarf
-# Это запустит perf record, который выполнит сервер
+# Запускаем сервер через perf record с правильными флагами
+# -g (call-graph) и -F 99 для частоты
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-F', '99', '--call-graph', 'dwarf', '--'] + shlex.split(server_cmd),
+    ['perf', 'record', '-o', 'perf.data', '-F', '99', '-g', '--'] + shlex.split(server_cmd),
     stderr=subprocess.DEVNULL
 )
 
-# Даём серверу время запуститься и perf начать запись
+# Даём серверу время запуститься
 time.sleep(2)
 
-# Обстреливаем сервер
+# Обстреливаем
 make_shots()
 
-# Даём perf время собрать данные после обстрела
+# Даём perf время собрать данные
 time.sleep(1)
 
-# Корректно останавливаем perf record (посылаем SIGINT, а не SIGTERM)
+# Корректно завершаем perf record
 perf.send_signal(signal.SIGINT)
 perf.wait()
 
-# Проверяем, что perf.data не пустой
+# Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
     sys.exit(1)
 
-# Строим флеймграф
+# Строим флеймграф с явными путями
 flamegraph_dir = './FlameGraph'
 
+# Запускаем perf script и проверяем, что есть данные
+perf_script = subprocess.Popen(
+    ['perf', 'script', '-i', 'perf.data'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+)
+
+# Сначала проверим, что perf script выдаёт хоть что-то
+stdout, stderr = perf_script.communicate()
+if not stdout:
+    print("ERROR: perf script produced no output!")
+    sys.exit(1)
+
+# Теперь строим флеймграф
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
     stdout=subprocess.PIPE,
@@ -100,19 +114,20 @@ flamegraph = subprocess.Popen(
     stderr=subprocess.DEVNULL
 )
 
-# Ждём завершения всех процессов
 perf_script.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
-# Проверяем, что graph.svg содержит RequestHandler
+# Проверяем результат
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
         if 'RequestHandler' not in content:
-            print("WARNING: graph.svg does not contain RequestHandler functions")
+            # Проверим, что вообще есть в graph.svg
+            print("WARNING: graph.svg does not contain RequestHandler")
+            print(f"Content preview: {content[:200]}")
         else:
-            print("SUCCESS: graph.svg created successfully")
+            print("SUCCESS: graph.svg contains RequestHandler functions")
 else:
     print("ERROR: graph.svg was not created!")
     sys.exit(1)
