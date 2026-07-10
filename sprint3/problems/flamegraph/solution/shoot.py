@@ -52,21 +52,15 @@ def make_shots():
 
 server_cmd = start_server()
 
-# Запускаем сервер
-server = run(server_cmd)
-
-# Даём серверу время запуститься
-time.sleep(1)
-
-# Запускаем perf record с флагом -p для PID сервера и -o для явного указания файла
-# Добавляем -F 99 для частоты семплирования и --call-graph dwarf для захвата стека
+# Запускаем сервер через perf record с флагом --call-graph dwarf
+# Это запустит perf record, который выполнит сервер
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid), '-F', '99', '--call-graph', 'dwarf'],
+    ['perf', 'record', '-o', 'perf.data', '-F', '99', '--call-graph', 'dwarf', '--'] + shlex.split(server_cmd),
     stderr=subprocess.DEVNULL
 )
 
-# Даём perf время начать запись
-time.sleep(1)
+# Даём серверу время запуститься и perf начать запись
+time.sleep(2)
 
 # Обстреливаем сервер
 make_shots()
@@ -74,12 +68,9 @@ make_shots()
 # Даём perf время собрать данные после обстрела
 time.sleep(1)
 
-# Корректно останавливаем perf record
+# Корректно останавливаем perf record (посылаем SIGINT, а не SIGTERM)
 perf.send_signal(signal.SIGINT)
 perf.wait()
-
-# Останавливаем сервер
-stop(server)
 
 # Проверяем, что perf.data не пустой
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
@@ -87,7 +78,6 @@ if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     sys.exit(1)
 
 # Строим флеймграф
-# Используем явные пути к скриптам
 flamegraph_dir = './FlameGraph'
 
 perf_script = subprocess.Popen(
@@ -115,7 +105,7 @@ perf_script.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
-# Проверяем, что graph.svg создан и содержит нужные функции
+# Проверяем, что graph.svg содержит RequestHandler
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
