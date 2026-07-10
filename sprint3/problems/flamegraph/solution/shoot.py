@@ -85,7 +85,7 @@ if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
 flamegraph_dir = './FlameGraph'
 
 perf_script = subprocess.Popen(
-    ['perf', 'script', '-i', 'perf.data'],
+    ['perf', 'script', '-i', 'perf.data', '--demangle'],
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
