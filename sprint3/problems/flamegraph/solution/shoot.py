@@ -5,6 +5,7 @@ import random
 import shlex
 import os
 import signal
+import sys
 
 RANDOM_LIMIT = 1000
 SEED = 123456789
@@ -51,34 +52,44 @@ def make_shots():
 
 server_cmd = start_server()
 
-# Запускаем сервер в фоновом процессе
+# Запускаем сервер
 server = run(server_cmd)
 
-# Небольшая пауза, чтобы сервер успел запуститься
-time.sleep(0.5)
+# Даём серверу время запуститься
+time.sleep(1)
 
-# Запускаем perf record для процесса сервера
-# Используем -p PID для привязки к процессу сервера
+# Запускаем perf record с флагом -p для PID сервера и -o для явного указания файла
+# Добавляем -F 99 для частоты семплирования и --call-graph dwarf для захвата стека
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid)],
+    ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid), '-F', '99', '--call-graph', 'dwarf'],
     stderr=subprocess.DEVNULL
 )
 
-# Небольшая пауза, чтобы perf успел начать запись
-time.sleep(0.5)
+# Даём perf время начать запись
+time.sleep(1)
 
-# Выполняем обстрел
+# Обстреливаем сервер
 make_shots()
 
-# Останавливаем perf record (посылаем SIGINT)
+# Даём perf время собрать данные после обстрела
+time.sleep(1)
+
+# Корректно останавливаем perf record
 perf.send_signal(signal.SIGINT)
 perf.wait()
 
 # Останавливаем сервер
 stop(server)
 
+# Проверяем, что perf.data не пустой
+if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
+    print("ERROR: perf.data is empty or does not exist!")
+    sys.exit(1)
+
 # Строим флеймграф
-# perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
+# Используем явные пути к скриптам
+flamegraph_dir = './FlameGraph'
+
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
     stdout=subprocess.PIPE,
@@ -86,22 +97,34 @@ perf_script = subprocess.Popen(
 )
 
 stackcollapse = subprocess.Popen(
-    ['./FlameGraph/stackcollapse-perf.pl'],
+    [f'{flamegraph_dir}/stackcollapse-perf.pl'],
     stdin=perf_script.stdout,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
 
 flamegraph = subprocess.Popen(
-    ['./FlameGraph/flamegraph.pl'],
+    [f'{flamegraph_dir}/flamegraph.pl'],
     stdin=stackcollapse.stdout,
     stdout=open('graph.svg', 'w'),
     stderr=subprocess.DEVNULL
 )
 
-# Ждём завершения всех процессов в пайпе
+# Ждём завершения всех процессов
 perf_script.wait()
 stackcollapse.wait()
 flamegraph.wait()
+
+# Проверяем, что graph.svg создан и содержит нужные функции
+if os.path.exists('graph.svg'):
+    with open('graph.svg', 'r') as f:
+        content = f.read()
+        if 'RequestHandler' not in content:
+            print("WARNING: graph.svg does not contain RequestHandler functions")
+        else:
+            print("SUCCESS: graph.svg created successfully")
+else:
+    print("ERROR: graph.svg was not created!")
+    sys.exit(1)
 
 print('Job done')
