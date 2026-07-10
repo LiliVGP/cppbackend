@@ -16,8 +16,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 100
-COOLDOWN = 0.1
+SHOOT_COUNT = 200
+COOLDOWN = 0.05
 
 
 def start_server():
@@ -56,18 +56,19 @@ server_cmd = start_server()
 server = run(server_cmd)
 time.sleep(1)
 
-# Запускаем perf record с захватом символов
+# Запускаем perf record для всех процессов с высокой частотой и захватом стека
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid), '-F', '99', '-g', '--call-graph', 'dwarf'],
+    ['perf', 'record', '-o', 'perf.data', '-a', '-F', '99', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
 )
 
 time.sleep(1)
 
-# Обстреливаем
+# Обстреливаем сервер
 make_shots()
 
-time.sleep(1)
+# Даём perf время собрать данные
+time.sleep(2)
 
 # Останавливаем perf
 perf.send_signal(signal.SIGINT)
@@ -84,23 +85,16 @@ if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
 # Строим флеймграф с демангляцией
 flamegraph_dir = './FlameGraph'
 
+# Используем perf script с --demangle для автоматической демангляции
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data', '--demangle'],
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
 
-# Добавляем c++filt для демангляции имён
-cxxfilt = subprocess.Popen(
-    ['c++filt'],
-    stdin=perf_script.stdout,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.DEVNULL
-)
-
 stackcollapse = subprocess.Popen(
     [f'{flamegraph_dir}/stackcollapse-perf.pl'],
-    stdin=cxxfilt.stdout,
+    stdin=perf_script.stdout,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL
 )
@@ -113,7 +107,6 @@ flamegraph = subprocess.Popen(
 )
 
 perf_script.wait()
-cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
@@ -121,14 +114,14 @@ flamegraph.wait()
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
-        # Проверяем разные варианты имени
-        if ('RequestHandler' in content or 
+        # Проверяем наличие RequestHandler в разных форматах
+        if ('RequestHandler' in content or
             'http_handler::RequestHandler' in content or
             '_ZN12http_handler14RequestHandler' in content):
             print("SUCCESS: graph.svg contains RequestHandler functions")
         else:
-            print(f"WARNING: graph.svg does not contain RequestHandler. Content preview: {content[:500]}")
-            # Выведем первые несколько строк для отладки
+            # Для отладки выведем первые строки
+            print("WARNING: RequestHandler not found. First 20 lines:")
             lines = content.split('\n')
             for i, line in enumerate(lines[:20]):
                 print(f"{i}: {line}")
