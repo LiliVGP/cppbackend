@@ -6,6 +6,7 @@ import shlex
 import os
 import signal
 import sys
+import psutil  # Добавим для проверки процесса
 
 RANDOM_LIMIT = 1000
 SEED = 123456789
@@ -51,29 +52,62 @@ def make_shots():
 
 
 server_cmd = start_server()
+print(f"Server command: {server_cmd}")
 
 # Запускаем сервер
 server = run(server_cmd)
-time.sleep(2)  # Даём серверу больше времени на запуск
-
-# Получаем PID сервера
-server_pid = server.pid
-print(f"Server PID: {server_pid}")
+time.sleep(0.5)  # Даём серверу немного времени на запуск
 
 # Проверяем, что сервер запущен
 if server.poll() is not None:
-    print("ERROR: Server died immediately!")
+    print(f"ERROR: Server died immediately! Return code: {server.returncode}")
+    # Попробуем прочитать stderr сервера
+    try:
+        stderr_output = server.stderr.read() if server.stderr else "No stderr"
+        print(f"Server stderr: {stderr_output}")
+    except:
+        pass
     sys.exit(1)
 
+server_pid = server.pid
+print(f"Server PID: {server_pid}")
+
+# Даём серверу больше времени на инициализацию
+time.sleep(2)
+
+# Проверяем, что сервер всё ещё жив
+if server.poll() is not None:
+    print(f"ERROR: Server died after initialization! Return code: {server.returncode}")
+    sys.exit(1)
+
+# Пытаемся сделать тестовый запрос, чтобы убедиться, что сервер отвечает
+try:
+    test_result = subprocess.run(
+        ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', 'localhost:8080/api/v1/maps'],
+        capture_output=True,
+        text=True,
+        timeout=5
+    )
+    print(f"Test request status: {test_result.stdout}")
+    if test_result.stdout != '200':
+        print(f"WARNING: Server returned {test_result.stdout}, expected 200")
+except subprocess.TimeoutExpired:
+    print("ERROR: Server not responding to test request")
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: Test request failed: {e}")
+    sys.exit(1)
+
+print("Server is running and responding")
+
 # Запускаем perf record с привязкой к процессу сервера
-# Используем -F 999 для высокой частоты и -g для записи стека
 perf = subprocess.Popen(
     ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '15'],
     stderr=subprocess.DEVNULL
 )
 
-time.sleep(1)
 print("Perf recording started")
+time.sleep(1)
 
 # Обстреливаем
 make_shots()
@@ -85,6 +119,7 @@ perf.send_signal(signal.SIGINT)
 try:
     perf.wait(timeout=5)
 except subprocess.TimeoutExpired:
+    print("Perf didn't stop, killing...")
     perf.kill()
     perf.wait()
 
@@ -97,12 +132,15 @@ print("Server stopped")
 # Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
-    print(f"File size: {os.path.getsize('perf.data') if os.path.exists('perf.data') else 'N/A'}")
+    if os.path.exists('perf.data'):
+        print(f"File size: {os.path.getsize('perf.data')} bytes")
+    else:
+        print("File does not exist")
     sys.exit(1)
 
 print(f"perf.data size: {os.path.getsize('perf.data')} bytes")
 
-# Строим флеймграф с принудительной демангляцией через c++filt
+# Строим флеймграф
 flamegraph_dir = './FlameGraph'
 
 # Проверяем наличие FlameGraph
@@ -110,7 +148,6 @@ if not os.path.exists(flamegraph_dir):
     print(f"ERROR: FlameGraph directory '{flamegraph_dir}' not found!")
     sys.exit(1)
 
-# Запускаем perf script и передаём через пайпы
 print("Generating flamegraph...")
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
