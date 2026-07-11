@@ -16,8 +16,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 100
-COOLDOWN = 0.1
+SHOOT_COUNT = 500  # Увеличим количество выстрелов
+COOLDOWN = 0.02    # Уменьшим задержку
 
 
 def start_server():
@@ -52,14 +52,20 @@ def make_shots():
 
 # Запускаем сервер
 server = run(start_server())
-time.sleep(1)
+print(f"Server PID: {server.pid}")
 
-# Получаем PID сервера
-server_pid = server.pid
+# Даём серверу время на инициализацию
+time.sleep(2)
 
-# Запускаем perf record
+# Проверяем, что сервер жив
+if server.poll() is not None:
+    print("ERROR: Server died immediately!")
+    sys.exit(1)
+
+# Запускаем perf record с записью всех процессов (-a)
+print("Starting perf record...")
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '10'],
+    ['perf', 'record', '-o', 'perf.data', '-a', '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
 )
 
@@ -71,20 +77,33 @@ make_shots()
 time.sleep(2)
 
 # Останавливаем perf
+print("Stopping perf...")
 perf.send_signal(signal.SIGINT)
-perf.wait()
+try:
+    perf.wait(timeout=5)
+except subprocess.TimeoutExpired:
+    perf.kill()
+    perf.wait()
+
+print("Perf stopped")
 
 # Останавливаем сервер
 stop(server)
+print("Server stopped")
 
 # Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
+    if os.path.exists('perf.data'):
+        print(f"File size: {os.path.getsize('perf.data')} bytes")
     sys.exit(1)
+
+print(f"perf.data size: {os.path.getsize('perf.data')} bytes")
 
 # Строим флеймграф
 flamegraph_dir = './FlameGraph'
 
+print("Generating flamegraph...")
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
     stdout=subprocess.PIPE,
@@ -117,11 +136,15 @@ cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
+print("Flamegraph generated")
+
 # Проверяем graph.svg
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
-        if 'http_handler::RequestHandler' in content:
+        if ('http_handler::RequestHandler' in content or
+            'RequestHandler' in content or
+            '_ZN12http_handler14RequestHandler' in content):
             print("SUCCESS: graph.svg contains RequestHandler functions")
         else:
             print("WARNING: RequestHandler not found in graph.svg")
