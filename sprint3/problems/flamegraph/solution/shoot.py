@@ -54,40 +54,64 @@ server_cmd = start_server()
 
 # Запускаем сервер
 server = run(server_cmd)
-time.sleep(1)
+time.sleep(2)  # Даём серверу больше времени на запуск
 
-# Получаем PID сервера для привязки perf record
+# Получаем PID сервера
 server_pid = server.pid
+print(f"Server PID: {server_pid}")
+
+# Проверяем, что сервер запущен
+if server.poll() is not None:
+    print("ERROR: Server died immediately!")
+    sys.exit(1)
 
 # Запускаем perf record с привязкой к процессу сервера
+# Используем -F 999 для высокой частоты и -g для записи стека
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '10'],
+    ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '15'],
     stderr=subprocess.DEVNULL
 )
 
 time.sleep(1)
+print("Perf recording started")
 
 # Обстреливаем
 make_shots()
 
-time.sleep(2)
+time.sleep(2)  # Даём perf время на запись
 
 # Останавливаем perf
 perf.send_signal(signal.SIGINT)
-perf.wait()
+try:
+    perf.wait(timeout=5)
+except subprocess.TimeoutExpired:
+    perf.kill()
+    perf.wait()
+
+print("Perf recording stopped")
 
 # Останавливаем сервер
 stop(server)
+print("Server stopped")
 
 # Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
+    print(f"File size: {os.path.getsize('perf.data') if os.path.exists('perf.data') else 'N/A'}")
     sys.exit(1)
+
+print(f"perf.data size: {os.path.getsize('perf.data')} bytes")
 
 # Строим флеймграф с принудительной демангляцией через c++filt
 flamegraph_dir = './FlameGraph'
 
+# Проверяем наличие FlameGraph
+if not os.path.exists(flamegraph_dir):
+    print(f"ERROR: FlameGraph directory '{flamegraph_dir}' not found!")
+    sys.exit(1)
+
 # Запускаем perf script и передаём через пайпы
+print("Generating flamegraph...")
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
     stdout=subprocess.PIPE,
@@ -123,6 +147,8 @@ perf_script.wait()
 cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
+
+print("Flamegraph generated")
 
 # Проверяем graph.svg
 if os.path.exists('graph.svg'):
