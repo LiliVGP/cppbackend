@@ -6,7 +6,6 @@ import shlex
 import os
 import signal
 import sys
-import psutil  # Добавим для проверки процесса
 
 RANDOM_LIMIT = 1000
 SEED = 123456789
@@ -51,22 +50,26 @@ def make_shots():
     print('Shooting complete')
 
 
+# Получаем команду для запуска сервера
 server_cmd = start_server()
 print(f"Server command: {server_cmd}")
 
-# Запускаем сервер
-server = run(server_cmd)
-time.sleep(0.5)  # Даём серверу немного времени на запуск
+# Запускаем сервер с возможностью читать stderr для отладки
+server = subprocess.Popen(
+    shlex.split(server_cmd),
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    text=True
+)
+time.sleep(1)  # Даём серверу время на запуск
 
-# Проверяем, что сервер запущен
+# Проверяем, что сервер запущен и жив
 if server.poll() is not None:
     print(f"ERROR: Server died immediately! Return code: {server.returncode}")
-    # Попробуем прочитать stderr сервера
-    try:
-        stderr_output = server.stderr.read() if server.stderr else "No stderr"
+    # Читаем stderr для отладки
+    stderr_output = server.stderr.read()
+    if stderr_output:
         print(f"Server stderr: {stderr_output}")
-    except:
-        pass
     sys.exit(1)
 
 server_pid = server.pid
@@ -78,6 +81,9 @@ time.sleep(2)
 # Проверяем, что сервер всё ещё жив
 if server.poll() is not None:
     print(f"ERROR: Server died after initialization! Return code: {server.returncode}")
+    stderr_output = server.stderr.read()
+    if stderr_output:
+        print(f"Server stderr: {stderr_output}")
     sys.exit(1)
 
 # Пытаемся сделать тестовый запрос, чтобы убедиться, что сервер отвечает
