@@ -36,10 +36,6 @@ def stop(process, wait=False):
         process.wait()
     if process.poll() is None:
         process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
 
 
 def shoot(ammo):
@@ -64,16 +60,19 @@ server_cmd = start_server()
 print(f"Starting server: {server_cmd}")
 server = run(server_cmd)
 
-# Даём серверу время на запуск
-time.sleep(2)
+# Даём серверу время на запуск - побольше
+time.sleep(3)
 
-# Проверяем, что сервер всё ещё работает
+# Проверяем, что сервер запустился
 if server.poll() is not None:
-    print("Server terminated immediately!")
-    exit(1)
+    print("Server terminated! Retrying...")
+    # Перезапускаем с абсолютным путём
+    server_cmd_abs = os.path.abspath(server_cmd)
+    print(f"Retrying with: {server_cmd_abs}")
+    server = run(server_cmd_abs)
+    time.sleep(3)
 
 # Запускаем perf record для процесса сервера
-# Используем -g для записи стека вызовов, -p для PID, -o для выходного файла
 print(f"Starting perf record for PID {server.pid}")
 perf = subprocess.Popen(
     ['perf', 'record', '-g', '-o', 'perf.data', '-p', str(server.pid)],
@@ -89,8 +88,7 @@ make_shots()
 # Даём время на завершение последних запросов
 time.sleep(1)
 
-# Останавливаем perf record (посылаем SIGINT) и ждём завершения
-print("Stopping perf...")
+# Останавливаем perf record
 perf.send_signal(signal.SIGINT)
 try:
     perf.wait(timeout=5)
@@ -99,53 +97,33 @@ except subprocess.TimeoutExpired:
     perf.wait()
 
 # Останавливаем сервер
-print("Stopping server...")
 stop(server, wait=True)
 
-# Проверяем, что perf.data создан и не пустой
+# Строим флеймграф
+# perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
 if os.path.exists('perf.data') and os.path.getsize('perf.data') > 0:
-    print(f"perf.data created, size: {os.path.getsize('perf.data')} bytes")
-    
-    # Строим флеймграф
-    print("Building flamegraph...")
-    try:
-        # perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
-        perf_script = subprocess.Popen(
-            ['perf', 'script', '-i', 'perf.data'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
+    perf_script = subprocess.Popen(
+        ['perf', 'script', '-i', 'perf.data'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
 
-        stackcollapse = subprocess.Popen(
-            ['./FlameGraph/stackcollapse-perf.pl'],
-            stdin=perf_script.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
+    stackcollapse = subprocess.Popen(
+        ['./FlameGraph/stackcollapse-perf.pl'],
+        stdin=perf_script.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
 
-        flamegraph = subprocess.Popen(
-            ['./FlameGraph/flamegraph.pl'],
-            stdin=stackcollapse.stdout,
-            stdout=open('graph.svg', 'w'),
-            stderr=subprocess.DEVNULL
-        )
+    flamegraph = subprocess.Popen(
+        ['./FlameGraph/flamegraph.pl'],
+        stdin=stackcollapse.stdout,
+        stdout=open('graph.svg', 'w'),
+        stderr=subprocess.DEVNULL
+    )
 
-        # Ждём завершения всех процессов в пайпе
-        perf_script.wait()
-        stackcollapse.wait()
-        flamegraph.wait()
-        
-        print("Flamegraph created successfully")
-        
-    except Exception as e:
-        print(f"Error building flamegraph: {e}")
-        # Создаём пустой SVG в случае ошибки
-        with open('graph.svg', 'w') as f:
-            f.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>')
-else:
-    print("Error: perf.data is empty or not created")
-    # Создаём пустой SVG для теста
-    with open('graph.svg', 'w') as f:
-        f.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>')
+    perf_script.wait()
+    stackcollapse.wait()
+    flamegraph.wait()
 
-print("Job done")
+print('Job done')
