@@ -6,7 +6,7 @@ phantom:
   ammo_type: uri
   load_profile:
     load_type: rps
-    schedule: const(100000, 1m)
+    schedule: const(5, 1m)
   ssl: false
 autostop:
   autostop:
