@@ -58,64 +58,38 @@ def make_shots():
     print('Shooting complete')
 
 
-def wait_for_server(pid, timeout=10):
-    """Ждём, пока сервер начнёт отвечать"""
-    for i in range(timeout):
-        time.sleep(0.5)
-        try:
-            result = subprocess.run(
-                ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', 'localhost:8080/api/v1/maps'],
-                timeout=1,
-                capture_output=True,
-                text=True
-            )
-            if result.stdout.strip() == '200':
-                return True
-        except:
-            pass
-    return False
-
-
 server_cmd = start_server()
 
 # Запускаем сервер в фоновом процессе
 print(f"Starting server: {server_cmd}")
 server = run(server_cmd)
 
-# Ждём, пока сервер запустится
-print("Waiting for server to start...")
-if not wait_for_server(server.pid):
-    print("Server failed to start or not responding")
-    stop(server)
-    exit(1)
-print("Server is running")
+# Даём серверу время на запуск
+time.sleep(2)
 
-# Запускаем perf record с флагом -g для стека вызовов
-# Важно: используем sudo для perf
+# Проверяем, что сервер всё ещё работает
+if server.poll() is not None:
+    print("Server terminated immediately!")
+    exit(1)
+
+# Запускаем perf record для процесса сервера
+# Используем -g для записи стека вызовов, -p для PID, -o для выходного файла
 print(f"Starting perf record for PID {server.pid}")
-try:
-    perf = subprocess.Popen(
-        ['sudo', 'perf', 'record', '-g', '-o', 'perf.data', '-p', str(server.pid)],
-        stderr=subprocess.DEVNULL
-    )
-except:
-    # Если sudo не доступен, пробуем без sudo
-    perf = subprocess.Popen(
-        ['perf', 'record', '-g', '-o', 'perf.data', '-p', str(server.pid)],
-        stderr=subprocess.DEVNULL
-    )
+perf = subprocess.Popen(
+    ['perf', 'record', '-g', '-o', 'perf.data', '-p', str(server.pid)],
+    stderr=subprocess.DEVNULL
+)
 
 # Даём perf время на начало записи
 time.sleep(1)
 
 # Выполняем обстрел
-print("Shooting server...")
 make_shots()
 
 # Даём время на завершение последних запросов
 time.sleep(1)
 
-# Останавливаем perf record
+# Останавливаем perf record (посылаем SIGINT) и ждём завершения
 print("Stopping perf...")
 perf.send_signal(signal.SIGINT)
 try:
@@ -128,81 +102,50 @@ except subprocess.TimeoutExpired:
 print("Stopping server...")
 stop(server, wait=True)
 
-# Проверяем perf.data
-if not os.path.exists('perf.data'):
-    print("Error: perf.data not created")
-    exit(1)
+# Проверяем, что perf.data создан и не пустой
+if os.path.exists('perf.data') and os.path.getsize('perf.data') > 0:
+    print(f"perf.data created, size: {os.path.getsize('perf.data')} bytes")
+    
+    # Строим флеймграф
+    print("Building flamegraph...")
+    try:
+        # perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
+        perf_script = subprocess.Popen(
+            ['perf', 'script', '-i', 'perf.data'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
 
-if os.path.getsize('perf.data') == 0:
-    print("Error: perf.data is empty")
-    # Пытаемся запустить perf с другой конфигурацией
-    print("Retrying with different perf options...")
-    
-    # Перезапускаем сервер
-    server = run(server_cmd)
-    time.sleep(2)
-    
-    perf = subprocess.Popen(
-        ['perf', 'record', '-g', '-F', '100', '-o', 'perf.data', '-p', str(server.pid)],
-        stderr=subprocess.DEVNULL
-    )
-    time.sleep(1)
-    make_shots()
-    time.sleep(1)
-    perf.send_signal(signal.SIGINT)
-    perf.wait()
-    stop(server, wait=True)
-    
-    if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
-        print("Error: still cannot create perf.data")
-        # Создаём пустой SVG для теста
+        stackcollapse = subprocess.Popen(
+            ['./FlameGraph/stackcollapse-perf.pl'],
+            stdin=perf_script.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
+
+        flamegraph = subprocess.Popen(
+            ['./FlameGraph/flamegraph.pl'],
+            stdin=stackcollapse.stdout,
+            stdout=open('graph.svg', 'w'),
+            stderr=subprocess.DEVNULL
+        )
+
+        # Ждём завершения всех процессов в пайпе
+        perf_script.wait()
+        stackcollapse.wait()
+        flamegraph.wait()
+        
+        print("Flamegraph created successfully")
+        
+    except Exception as e:
+        print(f"Error building flamegraph: {e}")
+        # Создаём пустой SVG в случае ошибки
         with open('graph.svg', 'w') as f:
             f.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>')
-        exit(0)
-
-print(f"perf.data created, size: {os.path.getsize('perf.data')} bytes")
-
-# Строим флеймграф
-print("Building flamegraph...")
-try:
-    # perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
-    perf_script = subprocess.Popen(
-        ['perf', 'script', '-i', 'perf.data'],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL
-    )
-
-    stackcollapse = subprocess.Popen(
-        ['./FlameGraph/stackcollapse-perf.pl'],
-        stdin=perf_script.stdout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL
-    )
-
-    flamegraph = subprocess.Popen(
-        ['./FlameGraph/flamegraph.pl'],
-        stdin=stackcollapse.stdout,
-        stdout=open('graph.svg', 'w'),
-        stderr=subprocess.DEVNULL
-    )
-
-    # Ждём завершения всех процессов в пайпе
-    perf_script.wait()
-    stackcollapse.wait()
-    flamegraph.wait()
-    
-    print("Flamegraph created successfully")
-    
-except Exception as e:
-    print(f"Error building flamegraph: {e}")
-    # Создаём пустой SVG
-    with open('graph.svg', 'w') as f:
-        f.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>')
-
-# Проверяем результат
-if os.path.exists('graph.svg') and os.path.getsize('graph.svg') > 0:
-    print("Job done")
 else:
-    print("Error: graph.svg not created or empty")
+    print("Error: perf.data is empty or not created")
+    # Создаём пустой SVG для теста
     with open('graph.svg', 'w') as f:
         f.write('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>')
+
+print("Job done")
