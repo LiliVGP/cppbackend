@@ -6,6 +6,8 @@ import shlex
 import os
 import signal
 import sys
+import tempfile
+import json
 
 RANDOM_LIMIT = 1000
 SEED = 123456789
@@ -16,8 +18,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 500  # Увеличим количество выстрелов
-COOLDOWN = 0.02    # Уменьшим задержку
+SHOOT_COUNT = 500
+COOLDOWN = 0.02
 
 
 def start_server():
@@ -50,22 +52,52 @@ def make_shots():
     print('Shooting complete')
 
 
-# Запускаем сервер
-server = run(start_server())
-print(f"Server PID: {server.pid}")
+# Получаем команду для запуска сервера
+server_cmd = start_server()
 
-# Даём серверу время на инициализацию
+# Создаём временный конфигурационный файл
+config_data = {
+    "maps": [
+        {
+            "id": "map1",
+            "name": "Map 1"
+        }
+    ]
+}
+
+with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    json.dump(config_data, f)
+    config_path = f.name
+
+print(f"Created temporary config: {config_path}")
+
+# Разбиваем команду на части (может содержать путь к серверу и другие аргументы)
+cmd_parts = shlex.split(server_cmd)
+server_exe = cmd_parts[0]
+
+# Запускаем сервер с конфигурационным файлом
+server = subprocess.Popen(
+    [server_exe, config_path],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    text=True
+)
+
+print(f"Server PID: {server.pid}")
 time.sleep(2)
 
 # Проверяем, что сервер жив
 if server.poll() is not None:
-    print("ERROR: Server died immediately!")
+    print(f"ERROR: Server died! Return code: {server.returncode}")
+    stderr = server.stderr.read()
+    if stderr:
+        print(f"Server stderr: {stderr}")
+    os.unlink(config_path)
     sys.exit(1)
 
-# Запускаем perf record с записью всех процессов (-a)
-print("Starting perf record...")
+# Запускаем perf record
 perf = subprocess.Popen(
-    ['perf', 'record', '-o', 'perf.data', '-a', '-F', '999', '-g', '--', 'sleep', '10'],
+    ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid), '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
 )
 
@@ -77,33 +109,21 @@ make_shots()
 time.sleep(2)
 
 # Останавливаем perf
-print("Stopping perf...")
 perf.send_signal(signal.SIGINT)
-try:
-    perf.wait(timeout=5)
-except subprocess.TimeoutExpired:
-    perf.kill()
-    perf.wait()
-
-print("Perf stopped")
+perf.wait()
 
 # Останавливаем сервер
 stop(server)
-print("Server stopped")
+os.unlink(config_path)
 
 # Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
-    if os.path.exists('perf.data'):
-        print(f"File size: {os.path.getsize('perf.data')} bytes")
     sys.exit(1)
-
-print(f"perf.data size: {os.path.getsize('perf.data')} bytes")
 
 # Строим флеймграф
 flamegraph_dir = './FlameGraph'
 
-print("Generating flamegraph...")
 perf_script = subprocess.Popen(
     ['perf', 'script', '-i', 'perf.data'],
     stdout=subprocess.PIPE,
@@ -136,18 +156,14 @@ cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
-print("Flamegraph generated")
-
 # Проверяем graph.svg
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
-        if ('http_handler::RequestHandler' in content or
-            'RequestHandler' in content or
-            '_ZN12http_handler14RequestHandler' in content):
+        if 'http_handler::RequestHandler' in content:
             print("SUCCESS: graph.svg contains RequestHandler functions")
         else:
-            print("WARNING: RequestHandler not found in graph.svg")
+            print("WARNING: RequestHandler not found")
 else:
     print("ERROR: graph.svg was not created!")
     sys.exit(1)
