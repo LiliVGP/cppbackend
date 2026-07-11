@@ -16,8 +16,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 500  # Ещё больше выстрелов
-COOLDOWN = 0.02    # Минимальная задержка
+SHOOT_COUNT = 100
+COOLDOWN = 0.1
 
 
 def start_server():
@@ -50,16 +50,14 @@ def make_shots():
     print('Shooting complete')
 
 
-server_cmd = start_server()
-
 # Запускаем сервер
-server = run(server_cmd)
-time.sleep(2)  # Даём серверу больше времени на запуск
+server = run(start_server())
+time.sleep(1)
 
 # Получаем PID сервера
 server_pid = server.pid
 
-# Запускаем perf record с привязкой к процессу сервера
+# Запускаем perf record
 perf = subprocess.Popen(
     ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
@@ -84,7 +82,7 @@ if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
     sys.exit(1)
 
-# Строим флеймграф с принудительной демангляцией через c++filt
+# Строим флеймграф
 flamegraph_dir = './FlameGraph'
 
 perf_script = subprocess.Popen(
@@ -123,23 +121,10 @@ flamegraph.wait()
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
-        # Проверяем наличие в разных форматах
-        if ('http_handler::RequestHandler' in content or
-            'RequestHandler' in content or
-            '_ZN12http_handler14RequestHandler' in content):
+        if 'http_handler::RequestHandler' in content:
             print("SUCCESS: graph.svg contains RequestHandler functions")
         else:
-            # Выводим для отладки
-            print("WARNING: RequestHandler not found. First 30 lines:")
-            lines = content.split('\n')
-            for i, line in enumerate(lines[:30]):
-                print(f"{i}: {line}")
-            
-            # Проверим, есть ли вообще какие-то функции
-            if 'function' in content.lower() or 'frame' in content.lower():
-                print("Graph contains some function names")
-            else:
-                print("Graph may not contain function names")
+            print("WARNING: RequestHandler not found in graph.svg")
 else:
     print("ERROR: graph.svg was not created!")
     sys.exit(1)
