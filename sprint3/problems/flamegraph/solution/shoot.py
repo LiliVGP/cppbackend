@@ -16,8 +16,8 @@ AMMUNITION = [
     'localhost:8080/api/v1/maps'
 ]
 
-SHOOT_COUNT = 100
-COOLDOWN = 0.1
+SHOOT_COUNT = 500  # Ещё больше выстрелов
+COOLDOWN = 0.02    # Минимальная задержка
 
 
 def start_server():
@@ -34,21 +34,13 @@ def run(command, output=None):
 def stop(process, wait=False):
     if process.poll() is None and wait:
         process.wait()
-    if process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
+    process.terminate()
 
 
 def shoot(ammo):
-    try:
-        hit = run('curl ' + ammo, output=subprocess.DEVNULL)
-        time.sleep(COOLDOWN)
-        stop(hit, wait=True)
-    except:
-        pass
+    hit = run('curl ' + ammo, output=subprocess.DEVNULL)
+    time.sleep(COOLDOWN)
+    stop(hit, wait=True)
 
 
 def make_shots():
@@ -61,82 +53,100 @@ def make_shots():
 server_cmd = start_server()
 
 # Запускаем сервер
-print(f"Starting server: {server_cmd}")
 server = run(server_cmd)
+time.sleep(1)
 
-# Даём серверу время на запуск
-time.sleep(2)
+# Получаем PID сервера для привязки perf record
+server_pid = server.pid
 
-# Проверяем, что сервер работает
-if server.poll() is not None:
-    print(f"Server terminated immediately with code {server.poll()}")
-    exit(1)
-
-print(f"Server running with PID: {server.pid}")
-
-# Сначала запускаем perf record
-print(f"Starting perf record for PID {server.pid}")
+# Запускаем perf record с привязкой к процессу сервера
 perf = subprocess.Popen(
-    ['perf', 'record', '-g', '-o', 'perf.data', '-p', str(server.pid)],
+    ['perf', 'record', '-o', 'perf.data', '-p', str(server_pid), '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
 )
 
-# Даём perf время на начало записи
 time.sleep(1)
 
-# Выполняем обстрел
+# Обстреливаем
 make_shots()
 
-# Даём время на завершение последних запросов
-time.sleep(1)
+time.sleep(2)
 
-# Останавливаем perf record (SIGINT)
-print("Stopping perf...")
+# Останавливаем perf
 perf.send_signal(signal.SIGINT)
 perf.wait()
 
 # Останавливаем сервер
-print("Stopping server...")
-stop(server, wait=True)
+stop(server)
 
 # Проверяем perf.data
-if os.path.exists('perf.data') and os.path.getsize('perf.data') > 0:
-    print(f"perf.data created, size: {os.path.getsize('perf.data')} bytes")
-    
-    # Строим флеймграф
-    print("Building flamegraph...")
-    try:
-        # perf script | stackcollapse-perf.pl | flamegraph.pl > graph.svg
-        perf_script = subprocess.Popen(
-            ['perf', 'script', '-i', 'perf.data'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
+if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
+    print("ERROR: perf.data is empty or does not exist!")
+    sys.exit(1)
 
-        stackcollapse = subprocess.Popen(
-            ['./FlameGraph/stackcollapse-perf.pl'],
-            stdin=perf_script.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
+# Строим флеймграф с принудительной демангляцией через c++filt
+flamegraph_dir = './FlameGraph'
 
-        with open('graph.svg', 'w') as f:
-            flamegraph = subprocess.Popen(
-                ['./FlameGraph/flamegraph.pl'],
-                stdin=stackcollapse.stdout,
-                stdout=f,
-                stderr=subprocess.DEVNULL
-            )
+# Запускаем perf script и передаём через пайпы
+perf_script = subprocess.Popen(
+    ['perf', 'script', '-i', 'perf.data'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL
+)
 
-        perf_script.wait()
-        stackcollapse.wait()
-        flamegraph.wait()
-        
-        print("Flamegraph created successfully")
-        
-    except Exception as e:
-        print(f"Error building flamegraph: {e}")
+# Демангилируем имена функций
+cxxfilt = subprocess.Popen(
+    ['c++filt'],
+    stdin=perf_script.stdout,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL
+)
+
+# Сворачиваем стеки
+stackcollapse = subprocess.Popen(
+    [f'{flamegraph_dir}/stackcollapse-perf.pl'],
+    stdin=cxxfilt.stdout,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL
+)
+
+# Генерируем флеймграф
+flamegraph = subprocess.Popen(
+    [f'{flamegraph_dir}/flamegraph.pl'],
+    stdin=stackcollapse.stdout,
+    stdout=open('graph.svg', 'w'),
+    stderr=subprocess.DEVNULL
+)
+
+# Ждём завершения всех процессов
+perf_script.wait()
+cxxfilt.wait()
+stackcollapse.wait()
+flamegraph.wait()
+
+# Проверяем graph.svg
+if os.path.exists('graph.svg'):
+    with open('graph.svg', 'r') as f:
+        content = f.read()
+        # Проверяем наличие RequestHandler в разных форматах
+        if ('http_handler::RequestHandler' in content or
+            'RequestHandler' in content or
+            '_ZN12http_handler14RequestHandler' in content):
+            print("SUCCESS: graph.svg contains RequestHandler functions")
+        else:
+            # Выводим для отладки
+            print("WARNING: RequestHandler not found. First 30 lines:")
+            lines = content.split('\n')
+            for i, line in enumerate(lines[:30]):
+                print(f"{i}: {line}")
+            
+            # Проверим, есть ли вообще какие-то функции
+            if 'function' in content.lower() or 'frame' in content.lower():
+                print("Graph contains some function names")
+            else:
+                print("Graph may not contain function names")
 else:
-    print("Error: perf.data is empty or not created")
+    print("ERROR: graph.svg was not created!")
+    sys.exit(1)
 
-print("Job done")
+print('Job done')
