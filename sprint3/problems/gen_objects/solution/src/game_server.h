@@ -2,7 +2,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <boost/json.hpp>
+#include <boost/json.cpp>
 
 #include "model.h"
 #include "json_loader.h"
