@@ -1,3 +1,6 @@
+#define CATCH_CONFIG_MAIN
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <chrono>
 #include <memory>
 
@@ -6,7 +9,6 @@
 
 using namespace std::literals;
 
-// Заглушка для генератора, возвращающая фиксированное число трофеев
 class TestLootGenerator : public loot_gen::LootGenerator {
 public:
     TestLootGenerator(unsigned loot_per_tick = 0)
@@ -23,7 +25,7 @@ private:
 
 TEST_CASE("GameState generates loot", "[GameState]") {
     GIVEN("A map with roads and loot types") {
-        Map map{ "map1", "Map 1", 3 }; // 3 типа трофеев
+        Map map{ "map1", "Map 1", 3 };
         map.AddRoad(Road{ 0, 0, 10, 0 });
         map.AddRoad(Road{ 10, 0, 10, 10 });
         map.AddRoad(Road{ 10, 10, 0, 10 });
@@ -49,10 +51,8 @@ TEST_CASE("GameState generates loot", "[GameState]") {
 
             THEN("Loot appears on roads") {
                 for (const auto& [id, loot] : state.GetLoot()) {
-                    // Проверяем, что точка лежит на одной из дорог
                     bool on_road = false;
                     for (const auto& road : map.GetRoads()) {
-                        // Используем эпсилон для плавающих чисел
                         if (loot.position.x >= std::min(road.x0, road.x1) - 0.01 &&
                             loot.position.x <= std::max(road.x0, road.x1) + 0.01 &&
                             loot.position.y >= std::min(road.y0, road.y1) - 0.01 &&
@@ -78,7 +78,6 @@ TEST_CASE("GameState respects loot limits", "[GameState]") {
         GameState state{ loot_gen, std::move(rng) };
         state.SetCurrentMap(&map);
 
-        // Добавляем 2 игроков
         state.AddPlayer(PlayerId{ 1 }, GameState::Player{
             .position = {0, 0},
             .speed = {0, 0},
@@ -158,7 +157,6 @@ TEST_CASE("LootGenerator with deterministic random", "[LootGenerator]") {
         loot_gen::LootGenerator gen{ milliseconds{1000}, 0.5, [] { return 0.5; } };
 
         WHEN("Loot shortage is 4 and probability is 0.5") {
-            // За один период должно сгенерироваться 2 трофея
             unsigned result = gen.Generate(milliseconds{ 1000 }, 0, 4);
 
             THEN("Generated loot is 2") {
