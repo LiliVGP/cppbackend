@@ -27,11 +27,14 @@ RUN apt update && \
 
 RUN groupadd -r www && useradd -r -g www www
 
-RUN mkdir -p /app/data && chown -R www:www /app
+# Создаём директории и устанавливаем права
+RUN mkdir -p /app/data /app/static && chown -R www:www /app
 
-# Единственная строка копирования — именно так, как вы попросили
-COPY --from=build /app/build/game_server /app/
+# Копируем исполняемый файл (убедитесь, что путь правильный)
+COPY --from=build /app/build/bin/game_server /app/game_server
+RUN chmod +x /app/game_server
 
+# Копируем данные и статику
 COPY ./data /app/data
 COPY ./static /app/static
 
@@ -40,5 +43,7 @@ WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
 
-# Правильный запуск с флагами
-ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
+EXPOSE 8080
+
+ENTRYPOINT ["/app/game_server"]
+CMD ["--config-file", "/app/data/config.json", "--www-root", "/app/static"]
