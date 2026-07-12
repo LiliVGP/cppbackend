@@ -1,5 +1,4 @@
 #include "json_loader.h"
-
 #include <fstream>
 #include <sstream>
 #include <boost/json.hpp>
@@ -39,7 +38,7 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
         for (const auto& map_val : maps_arr) {
             auto& map_obj = map_val.as_object();
 
-            MapInfo map_info;
+            ConfigLoader::MapInfo map_info;
             map_info.id = std::string(map_obj.at("id").as_string());
             map_info.name = std::string(map_obj.at("name").as_string());
 
@@ -93,10 +92,11 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 auto& loot_types_arr = loot_types_it->value().as_array();
                 for (const auto& loot_type_val : loot_types_arr) {
                     auto& loot_type_obj = loot_type_val.as_object();
-                    LootTypeInfo type_info;
+                    ConfigLoader::LootTypeInfo type_info;
                     type_info.name = std::string(loot_type_obj.at("name").as_string());
                     type_info.file = std::string(loot_type_obj.at("file").as_string());
                     type_info.type = std::string(loot_type_obj.at("type").as_string());
+
                     if (loot_type_obj.contains("rotation")) {
                         type_info.rotation = loot_type_obj.at("rotation").as_double();
                     }

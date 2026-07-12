@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <boost/json.hpp>
 
 #include "model.h"
 #include "loot_generator.h"
@@ -15,6 +16,7 @@ public:
         double rotation = 0;
         std::string color;
         double scale = 1.0;
+        // Можно добавить и другие поля по мере необходимости
     };
 
     struct LootGeneratorConfig {
@@ -28,7 +30,7 @@ public:
         std::vector<Road> roads;
         std::vector<Map::Building> buildings;
         std::vector<Map::Office> offices;
-        std::vector<LootTypeInfo> loot_types;
+        std::vector<LootTypeInfo> loot_types; // Храним здесь, отдельно от модели
     };
 
     static ConfigLoader LoadFromFile(const std::string& path);

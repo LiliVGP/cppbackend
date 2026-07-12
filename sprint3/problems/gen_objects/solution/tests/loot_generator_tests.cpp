@@ -8,6 +8,7 @@
 
 using namespace std::literals;
 
+// Заглушка для генератора, возвращающая фиксированное число трофеев
 class TestLootGenerator : public loot_gen::LootGenerator {
 public:
     TestLootGenerator(unsigned loot_per_tick = 0)
@@ -53,6 +54,7 @@ TEST_CASE("GameState generates loot", "[GameState]") {
                     // Проверяем, что точка лежит на одной из дорог
                     bool on_road = false;
                     for (const auto& road : map.GetRoads()) {
+                        // Используем эпсилон для плавающих чисел
                         if (loot.position.x >= std::min(road.x0, road.x1) - 0.01 &&
                             loot.position.x <= std::max(road.x0, road.x1) + 0.01 &&
                             loot.position.y >= std::min(road.y0, road.y1) - 0.01 &&

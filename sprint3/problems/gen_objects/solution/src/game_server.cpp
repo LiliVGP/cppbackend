@@ -17,10 +17,11 @@ GameServer::GameServer(const std::string& config_file) {
 void GameServer::InitializeMaps() {
     const auto& map_infos = config_->GetMaps();
     for (const auto& map_info : map_infos) {
+        // Создаем игровую карту (модель)
         auto map = std::make_unique<Map>(
             map_info.id,
             map_info.name,
-            map_info.loot_types.size()
+            map_info.loot_types.size() // Важно: передаем количество типов!
         );
 
         for (const auto& road : map_info.roads) {
@@ -34,6 +35,9 @@ void GameServer::InitializeMaps() {
         }
 
         maps_[map_info.id] = std::move(map);
+
+        // Сохраняем инфо для API отдельно
+        map_infos_[map_info.id] = map_info;
     }
 }
 
@@ -46,10 +50,115 @@ void GameServer::InitializeGameState() {
     auto rng = std::make_unique<std::mt19937>(std::random_device{}());
     game_state_ = std::make_unique<GameState>(loot_gen, std::move(rng));
 
-    // Устанавливаем первую карту как текущую
     if (!maps_.empty()) {
         game_state_->SetCurrentMap(maps_.begin()->second.get());
     }
+}
+
+// Формируем ответ для /api/v1/maps/{id}
+boost::json::object GameServer::GetMapInfo(const std::string& id) const {
+    auto it = map_infos_.find(id);
+    if (it == map_infos_.end()) {
+        return {};
+    }
+    const auto& info = it->second;
+
+    boost::json::object obj;
+    obj["id"] = info.id;
+    obj["name"] = info.name;
+
+    // Дороги
+    boost::json::array roads;
+    for (const auto& r : info.roads) {
+        boost::json::object road_obj;
+        road_obj["x0"] = r.x0;
+        road_obj["y0"] = r.y0;
+        if (r.x0 != r.x1) {
+            road_obj["x1"] = r.x1;
+        }
+        else {
+            road_obj["y1"] = r.y1;
+        }
+        roads.push_back(road_obj);
+    }
+    obj["roads"] = roads;
+
+    // Здания
+    boost::json::array buildings;
+    for (const auto& b : info.buildings) {
+        boost::json::object building_obj;
+        building_obj["x"] = b.position.x;
+        building_obj["y"] = b.position.y;
+        building_obj["w"] = b.width;
+        building_obj["h"] = b.height;
+        buildings.push_back(building_obj);
+    }
+    obj["buildings"] = buildings;
+
+    // Офисы
+    boost::json::array offices;
+    for (const auto& o : info.offices) {
+        boost::json::object office_obj;
+        office_obj["id"] = "o0"; // В реальном приложении нужно брать id из структуры
+        office_obj["x"] = o.position.x;
+        office_obj["y"] = o.position.y;
+        office_obj["offsetX"] = o.offset_x;
+        office_obj["offsetY"] = o.offset_y;
+        offices.push_back(office_obj);
+    }
+    obj["offices"] = offices;
+
+    // Трофеи
+    boost::json::array loot_types;
+    for (const auto& lt : info.loot_types) {
+        boost::json::object loot_obj;
+        loot_obj["name"] = lt.name;
+        loot_obj["file"] = lt.file;
+        loot_obj["type"] = lt.type;
+        if (!lt.color.empty()) loot_obj["color"] = lt.color;
+        if (lt.rotation != 0) loot_obj["rotation"] = lt.rotation;
+        if (lt.scale != 1.0) loot_obj["scale"] = lt.scale;
+        loot_types.push_back(loot_obj);
+    }
+    obj["lootTypes"] = loot_types;
+
+    return obj;
+}
+
+// Формируем ответ для /api/v1/game/state
+boost::json::object GameServer::GetGameState() const {
+    boost::json::object response;
+
+    // Игроки
+    boost::json::object players_obj;
+    for (const auto& [id, player] : game_state_->GetPlayers()) {
+        boost::json::object p;
+        p["pos"] = boost::json::array{ player.position.x, player.position.y };
+        p["speed"] = boost::json::array{ player.speed.x, player.speed.y };
+
+        std::string dir;
+        switch (player.direction) {
+        case GameState::Direction::U: dir = "U"; break;
+        case GameState::Direction::D: dir = "D"; break;
+        case GameState::Direction::L: dir = "L"; break;
+        case GameState::Direction::R: dir = "R"; break;
+        }
+        p["dir"] = dir;
+        players_obj[std::to_string(id.GetId())] = p;
+    }
+    response["players"] = players_obj;
+
+    // Потерянные предметы
+    boost::json::object loot_obj;
+    for (const auto& [id, loot] : game_state_->GetLoot()) {
+        boost::json::object l;
+        l["type"] = static_cast<int>(loot.type.GetId());
+        l["pos"] = boost::json::array{ loot.position.x, loot.position.y };
+        loot_obj[std::to_string(id.GetId())] = l;
+    }
+    response["lostObjects"] = loot_obj;
+
+    return response;
 }
 
 void GameServer::ProcessTick(std::chrono::milliseconds delta) {
