@@ -19,7 +19,7 @@ add_executable(game_server
     src/game_server.h
     src/game_server.cpp
 )
-target_link_libraries(game_server PRIVATE CONAN_PKG::catch2 CONAN_PKG::boost Threads::Threads) 
+target_link_libraries(game_server PRIVATE CONAN_PKG::boost Threads::Threads) 
 
 add_executable(game_server_tests
     src/model.h
@@ -31,4 +31,4 @@ add_executable(game_server_tests
     tests/loot_generator_tests.cpp
 )
 target_include_directories(game_server_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests)
-target_link_libraries(game_server_tests PRIVATE CONAN_PKG::catch2 CONAN_PKG::boost Threads::Threads)
+target_link_libraries(game_server_tests PRIVATE CONAN_PKG::boost Threads::Threads)
