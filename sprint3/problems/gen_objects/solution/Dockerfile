@@ -10,6 +10,7 @@ RUN apt update && \
 COPY conanfile.txt /app/
 COPY CMakeLists.txt /app/
 COPY ./src /app/src
+COPY ./tests /app/tests
 
 RUN mkdir /app/build && cd /app/build && \
     conan profile new default --detect && \
