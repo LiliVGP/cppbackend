@@ -42,4 +42,4 @@ WORKDIR /app
 ENV STATIC_ROOT=/app/static
 
 # Правильный запуск с флагами
-ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
+ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static", "/app/game_server_tests"]
