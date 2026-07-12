@@ -8,14 +8,8 @@
 
 class GameServer {
 public:
-    GameServer(const std::string& config_path);
-
-    // API методы
-    std::string GetMaps() const;
-    std::string GetMap(const std::string& map_id) const;
-    std::string GetGameState() const;
-
-    void Tick(std::chrono::milliseconds delta);
+    explicit GameServer(const std::string& config_file);
+    void Run();
 
 private:
     std::unique_ptr<ConfigLoader> config_;
@@ -23,6 +17,7 @@ private:
     std::unique_ptr<GameState> game_state_;
     std::chrono::milliseconds time_{ 0 };
 
-    std::string SerializeLootTypes(const ConfigLoader::MapInfo& map_info) const;
-    std::string SerializeLootObject(LootId id, const GameState::Loot& loot) const;
+    void InitializeMaps();
+    void InitializeGameState();
+    void ProcessTick(std::chrono::milliseconds delta);
 };
