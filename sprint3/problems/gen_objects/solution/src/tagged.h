@@ -15,6 +15,19 @@ public:
     bool operator==(const Tagged& other) const { return id_ == other.id_; }
     bool operator!=(const Tagged& other) const { return id_ != other.id_; }
 
+    // --- ДОБАВЛЕННЫЙ ОПЕРАТОР ---
+    Tagged& operator++() {  // Префиксный ++ (возвращает ссылку на себя)
+        ++id_;
+        return *this;
+    }
+
+    Tagged operator++(int) {  // Постфиксный ++ (возвращает копию старого значения)
+        Tagged tmp = *this;
+        ++id_;
+        return tmp;
+    }
+    // ---------------------------
+
 private:
     IdType id_;
 };
