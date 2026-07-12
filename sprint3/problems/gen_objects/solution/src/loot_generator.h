@@ -33,7 +33,9 @@ namespace loot_gen {
          * loot_count - количество трофеев на карте до вызова Generate
          * looter_count - количество мародёров на карте
          */
-        unsigned Generate(TimeInterval time_delta, unsigned loot_count, unsigned looter_count);
+        // --- ДОБАВЛЕНО: virtual ---
+        virtual unsigned Generate(TimeInterval time_delta, unsigned loot_count, unsigned looter_count);
+        // -------------------------
 
     private:
         static double DefaultGenerator() noexcept {
