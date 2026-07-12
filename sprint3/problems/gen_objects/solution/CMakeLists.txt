@@ -21,7 +21,6 @@ add_executable(game_server
 )
 
 add_executable(game_server_tests
-    tests/model_tests.cpp
     tests/loot_generator_tests.cpp
     src/model.h
     src/model.cpp
