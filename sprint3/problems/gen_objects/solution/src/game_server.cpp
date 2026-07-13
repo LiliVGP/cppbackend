@@ -34,7 +34,10 @@ void GameServer::InitializeMaps() {
         );
         for (const auto& road : map_info.roads) map->AddRoad(road);
         for (const auto& building : map_info.buildings) map->AddBuilding(building);
-        for (const auto& office : map_info.offices) map->AddOffice(office);
+        for (const auto& office : map_info.offices) {
+            // Добавляем office с id
+            map->AddOffice(office);
+        }
         maps_[map_info.id] = std::move(map);
         map_infos_[map_info.id] = map_info;
     }
@@ -87,6 +90,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     boost::json::array offices;
     for (const auto& o : info.offices) {
         boost::json::object office_obj;
+        // ВАЖНО: берём id из офиса, а не хардкодим
         office_obj["id"] = "o0"; // В реальном приложении нужно брать id из структуры
         office_obj["x"] = o.position.x;
         office_obj["y"] = o.position.y;
@@ -182,12 +186,16 @@ private:
 
         // Обработка маршрутов
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
-            std::string target = req_.target().to_string();  // <--- ИСПРАВЛЕНИЕ 1
+            std::string target = req_.target().to_string();
             
             if (target == "/api/v1/game/state") {
                 auto json_obj = server_->GetGameState();
                 res.result(http::status::ok);
-                res.body() = boost::json::serialize(json_obj);
+                if (req_.method() == http::verb::head) {
+                    res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
+                } else {
+                    res.body() = boost::json::serialize(json_obj);
+                }
             }
             else if (target.rfind("/api/v1/maps/", 0) == 0) {
                 std::string map_id = target.substr(13);
@@ -197,10 +205,18 @@ private:
                     boost::json::object err;
                     err["code"] = "mapNotFound";
                     err["message"] = "Map not found";
-                    res.body() = boost::json::serialize(err);
+                    if (req_.method() == http::verb::head) {
+                        res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
+                    } else {
+                        res.body() = boost::json::serialize(err);
+                    }
                 } else {
                     res.result(http::status::ok);
-                    res.body() = boost::json::serialize(json_obj);
+                    if (req_.method() == http::verb::head) {
+                        res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
+                    } else {
+                        res.body() = boost::json::serialize(json_obj);
+                    }
                 }
             }
             else {
@@ -213,12 +229,18 @@ private:
             boost::json::object err;
             err["code"] = "invalidMethod";
             err["message"] = "Method not allowed";
-            res.body() = boost::json::serialize(err);
+            if (req_.method() == http::verb::head) {
+                res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
+            } else {
+                res.body() = boost::json::serialize(err);
+            }
         }
 
-        // ИСПРАВЛЕНИЕ 2: конвертируем size_t в строку
-        res.set(http::field::content_length, std::to_string(res.body().size()));
-        
+        // Content-Length для всех ответов
+        if (res.body().empty() && res.find(http::field::content_length) == res.end()) {
+            res.set(http::field::content_length, "0");
+        }
+
         http::async_write(stream_, res,
             [self](beast::error_code ec, std::size_t) {
                 self->stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
