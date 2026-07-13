@@ -19,7 +19,7 @@ public:
 private:
     std::unique_ptr<ConfigLoader> config_;
     std::unordered_map<std::string, std::unique_ptr<Map>> maps_;
-    std::unordered_map<std::string, ConfigLoader::MapInfo> map_infos_; // Храним инфо для API
+    std::unordered_map<std::string, ConfigLoader::MapInfo> map_infos_;
     std::unique_ptr<GameState> game_state_;
     std::chrono::milliseconds time_{ 0 };
 
