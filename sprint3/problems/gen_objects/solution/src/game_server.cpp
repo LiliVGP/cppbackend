@@ -182,7 +182,8 @@ private:
 
         // Обработка маршрутов
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
-            std::string target = req_.target();
+            std::string target = req_.target().to_string();  // <--- ИСПРАВЛЕНИЕ 1
+            
             if (target == "/api/v1/game/state") {
                 auto json_obj = server_->GetGameState();
                 res.result(http::status::ok);
@@ -215,7 +216,9 @@ private:
             res.body() = boost::json::serialize(err);
         }
 
-        res.set(http::field::content_length, res.body().size());
+        // ИСПРАВЛЕНИЕ 2: конвертируем size_t в строку
+        res.set(http::field::content_length, std::to_string(res.body().size()));
+        
         http::async_write(stream_, res,
             [self](beast::error_code ec, std::size_t) {
                 self->stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
