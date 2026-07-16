@@ -357,9 +357,9 @@ void GameServer::Run() {
     });
 
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
-    HttpServer http(server_ptr, 8080);
+    HttpServer http(server_ptr, 80);
 
-    std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
+    std::cout << "Game server running on port 80... (Press Ctrl+C to stop)" << std::endl;
     http.run(); // Главный поток обрабатывает запросы
 
     stop_server = true;
