@@ -3,6 +3,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <random>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
@@ -231,7 +232,55 @@ private:
             else {
                 res.result(http::status::not_found);
             }
-        } else {
+        }
+        else if (req_.method() == http::verb::post) {
+            std::string target = req_.target().to_string();
+            if (target == "/api/v1/game/join") {
+                // Обработка JOIN
+                try {
+                    auto body = boost::json::parse(req_.body()).as_object();
+                    std::string user_name = body.at("userName").as_string().c_str();
+                    std::string map_id = body.at("mapId").as_string().c_str();
+
+                    auto map_it = server_->maps_.find(map_id);
+                    if (map_it == server_->maps_.end()) {
+                        res.result(http::status::bad_request);
+                        boost::json::object err;
+                        err["code"] = "mapNotFound";
+                        err["message"] = "Map not found";
+                        res.body() = boost::json::serialize(err);
+                    } else {
+                        // Генерируем ID игрока и токен
+                        static PlayerId::IdType next_player_id = 0;
+                        static std::mt19937 rng(std::random_device{}());
+                        PlayerId player_id{next_player_id++};
+                        std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
+
+                        // Добавляем игрока на карту
+                        GameState::Player player;
+                        player.position = {0.0, 0.0}; // Стартовая позиция
+                        player.speed = {0.0, 0.0};
+                        player.direction = GameState::Direction::U;
+                        server_->game_state_->AddPlayer(player_id, player);
+
+                        boost::json::object resp;
+                        resp["authToken"] = auth_token;
+                        resp["playerId"] = static_cast<int>(player_id.GetId());
+                        res.result(http::status::ok);
+                        res.body() = boost::json::serialize(resp);
+                    }
+                } catch (const std::exception& e) {
+                    res.result(http::status::bad_request);
+                    boost::json::object err;
+                    err["code"] = "invalidArgument";
+                    err["message"] = e.what();
+                    res.body() = boost::json::serialize(err);
+                }
+            } else {
+                res.result(http::status::not_found);
+            }
+        }
+        else {
             // Неподдерживаемый метод
             res.result(http::status::method_not_allowed);
             res.set(http::field::allow, "GET, HEAD");
@@ -314,8 +363,9 @@ void GameServer::Run() {
     }
 
     std::cout << "Server stopping..." << std::endl;
-    // Останавливаем io_context и ждем завершения потока HTTP-сервера
     // В реальном приложении нужно сохранить указатель на io_context и вызвать ioc_.stop()
     // Но для этого задания достаточно, чтобы поток завершился при выходе из main
-    http_thread.join();
+    if (http_thread.joinable()) {
+        http_thread.join();
+    }
 }
