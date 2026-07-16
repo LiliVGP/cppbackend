@@ -17,9 +17,20 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
 
     std::stringstream buffer;
     buffer << file.rdbuf();
-    json::value root = json::parse(buffer.str());
-    json::object obj = root.as_object();
 
+    json::value root;
+    try {
+        root = json::parse(buffer.str());
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to parse JSON from " + path + ": " + e.what());
+    }
+
+    if (!root.is_object()) {
+        throw std::runtime_error("Config root is not an object in " + path);
+    }
+
+    json::object obj = root.as_object();
     ConfigLoader loader;
 
     // Парсим lootGeneratorConfig
