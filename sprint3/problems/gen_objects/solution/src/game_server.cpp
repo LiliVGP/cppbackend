@@ -16,7 +16,6 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-// Глобальный флаг для остановки сервера
 std::atomic<bool> stop_server{false};
 
 void signal_handler(int) {
@@ -110,7 +109,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     boost::json::array offices;
     for (const auto& o : info.offices) {
         boost::json::object office_obj;
-        office_obj["id"] = "o0"; 
+        office_obj["id"] = "o0";
         office_obj["x"] = o.position.x;
         office_obj["y"] = o.position.y;
         office_obj["offsetX"] = o.offset_x;
@@ -317,6 +316,8 @@ class HttpServer {
 public:
     HttpServer(std::shared_ptr<GameServer> server, unsigned short port = 8080)
         : acceptor_(ioc_, tcp::endpoint(tcp::v4(), port)), server_(std::move(server)) {
+        // !!! ВАЖНО: начать слушать порт !!!
+        acceptor_.listen();
         do_accept();
     }
 
@@ -342,7 +343,7 @@ void GameServer::Run() {
 
     const auto tick_duration = std::chrono::milliseconds(100);
     
-    // Запускаем цикл тиков в отдельном потоке
+    // Запускаем тики в отдельном потоке
     std::thread tick_thread([this, tick_duration]() {
         while (!stop_server) {
             auto start = std::chrono::steady_clock::now();
@@ -359,7 +360,7 @@ void GameServer::Run() {
     HttpServer http(server_ptr, 8080);
 
     std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
-    http.run(); // Основной поток блокируется здесь, ожидая запросы
+    http.run(); // Главный поток остаётся здесь, обрабатывая запросы
 
     stop_server = true;
     if (tick_thread.joinable()) {
