@@ -16,8 +16,7 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-// Флаг для остановки сервера
-std::atomic<bool> stop_server{ false };
+std::atomic<bool> stop_server{false};
 
 void signal_handler(int) {
     stop_server = true;
@@ -141,14 +140,14 @@ boost::json::object GameServer::GetGameState() const {
     boost::json::object players_obj;
     for (const auto& [id, player] : game_state_->GetPlayers()) {
         boost::json::object p;
-        p["pos"] = boost::json::array{ player.position.x, player.position.y };
-        p["speed"] = boost::json::array{ player.speed.x, player.speed.y };
+        p["pos"] = boost::json::array{player.position.x, player.position.y};
+        p["speed"] = boost::json::array{player.speed.x, player.speed.y};
         std::string dir;
         switch (player.direction) {
-        case GameState::Direction::U: dir = "U"; break;
-        case GameState::Direction::D: dir = "D"; break;
-        case GameState::Direction::L: dir = "L"; break;
-        case GameState::Direction::R: dir = "R"; break;
+            case GameState::Direction::U: dir = "U"; break;
+            case GameState::Direction::D: dir = "D"; break;
+            case GameState::Direction::L: dir = "L"; break;
+            case GameState::Direction::R: dir = "R"; break;
         }
         p["dir"] = dir;
         players_obj[std::to_string(id.GetId())] = p;
@@ -159,7 +158,7 @@ boost::json::object GameServer::GetGameState() const {
     for (const auto& [id, loot] : game_state_->GetLoot()) {
         boost::json::object l;
         l["type"] = static_cast<int>(loot.type.GetId());
-        l["pos"] = boost::json::array{ loot.position.x, loot.position.y };
+        l["pos"] = boost::json::array{loot.position.x, loot.position.y};
         loot_obj[std::to_string(id.GetId())] = l;
     }
     response["lostObjects"] = loot_obj;
@@ -181,8 +180,7 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
 
 public:
     HttpSession(tcp::socket&& socket, std::shared_ptr<GameServer> server)
-        : stream_(std::move(socket)), server_(std::move(server)) {
-    }
+        : stream_(std::move(socket)), server_(std::move(server)) {}
 
     void run() {
         do_read();
@@ -206,14 +204,13 @@ private:
 
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
             std::string target = req_.target().to_string();
-
+            
             if (target == "/api/v1/game/state") {
                 auto json_obj = server_->GetGameState();
                 res.result(http::status::ok);
                 if (req_.method() == http::verb::head) {
                     res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                }
-                else {
+                } else {
                     res.body() = boost::json::serialize(json_obj);
                 }
             }
@@ -227,17 +224,14 @@ private:
                     err["message"] = "Map not found";
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-                    }
-                    else {
+                    } else {
                         res.body() = boost::json::serialize(err);
                     }
-                }
-                else {
+                } else {
                     res.result(http::status::ok);
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                    }
-                    else {
+                    } else {
                         res.body() = boost::json::serialize(json_obj);
                     }
                 }
@@ -261,16 +255,15 @@ private:
                         err["code"] = "mapNotFound";
                         err["message"] = "Map not found";
                         res.body() = boost::json::serialize(err);
-                    }
-                    else {
+                    } else {
                         static PlayerId::IdType next_player_id = 0;
                         static std::mt19937 rng(std::random_device{}());
-                        PlayerId player_id{ next_player_id++ };
+                        PlayerId player_id{next_player_id++};
                         std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
 
                         GameState::Player player;
-                        player.position = { 0.0, 0.0 };
-                        player.speed = { 0.0, 0.0 };
+                        player.position = {0.0, 0.0};
+                        player.speed = {0.0, 0.0};
                         player.direction = GameState::Direction::U;
                         server_->AddPlayer(player_id, player);
 
@@ -280,16 +273,14 @@ private:
                         res.result(http::status::ok);
                         res.body() = boost::json::serialize(resp);
                     }
-                }
-                catch (const std::exception& e) {
+                } catch (const std::exception& e) {
                     res.result(http::status::bad_request);
                     boost::json::object err;
                     err["code"] = "invalidArgument";
                     err["message"] = e.what();
                     res.body() = boost::json::serialize(err);
                 }
-            }
-            else {
+            } else {
                 res.result(http::status::not_found);
             }
         }
@@ -301,8 +292,7 @@ private:
             err["message"] = "Method not allowed";
             if (req_.method() == http::verb::head) {
                 res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-            }
-            else {
+            } else {
                 res.body() = boost::json::serialize(err);
             }
         }
@@ -352,8 +342,8 @@ void GameServer::Run() {
     signal(SIGTERM, signal_handler);
 
     const auto tick_duration = std::chrono::milliseconds(100);
-
-    // Тики в отдельном потоке
+    
+    // Запускаем тики в отдельном потоке
     std::thread tick_thread([this, tick_duration]() {
         while (!stop_server) {
             auto start = std::chrono::steady_clock::now();
@@ -364,7 +354,7 @@ void GameServer::Run() {
                 std::this_thread::sleep_for(tick_duration - elapsed);
             }
         }
-        });
+    });
 
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
     HttpServer http(server_ptr, 8080);
