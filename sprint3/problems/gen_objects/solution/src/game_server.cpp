@@ -49,6 +49,7 @@ void GameServer::InitializeGameState() {
         gen_config.period,
         gen_config.probability
     );
+    // Инициализируем rng ПЕРЕД созданием GameState
     auto rng = std::make_unique<std::mt19937>(std::random_device{}());
     game_state_ = std::make_unique<GameState>(loot_gen, std::move(rng));
     if (!maps_.empty()) {
@@ -150,6 +151,7 @@ boost::json::object GameServer::GetGameState() const {
 
 void GameServer::ProcessTick(std::chrono::milliseconds delta) {
     time_ += delta;
+    // Здесь будет вызываться GenerateLoot, который использует rng_
     game_state_->GenerateLoot(delta);
 }
 
