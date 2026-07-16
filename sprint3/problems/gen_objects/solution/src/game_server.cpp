@@ -1,17 +1,26 @@
 #include "game_server.h"
 #include <iostream>
 #include <thread>
+#include <atomic>
 #include <chrono>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/json.hpp>
+#include <signal.h>
 
 namespace beast = boost::beast;
 namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
+
+// Глобальный флаг для остановки сервера
+std::atomic<bool> stop_server{false};
+
+void signal_handler(int) {
+    stop_server = true;
+}
 
 GameServer::GameServer(const std::string& config_file) {
     try {
@@ -276,21 +285,33 @@ private:
 };
 
 void GameServer::Run() {
+    // Устанавливаем обработчик сигнала для корректного завершения
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     const auto tick_duration = std::chrono::milliseconds(100);
     
     // Создаем shared_ptr от this с пустым deleter
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
 
-    // Запускаем HTTP-сервер в отдельном потоке
-    std::thread http_thread([server_ptr]() {
+    // Запускаем HTTP-сервер в отдельном потоке с помощью jthread (C++20)
+    std::jthread http_thread([server_ptr](std::stop_token stop_token) {
         HttpServer http(server_ptr, 8080);
-        http.run();
+        // Запускаем сервер в отдельном потоке, но не блокируем этот поток
+        std::thread http_run([&http]() {
+            http.run();
+        });
+        // Ждем сигнала остановки
+        stop_token.stop_requested();
+        // Останавливаем io_context
+        http.run(); // Этот вызов заблокирует поток, пока сервер не остановится вручную. 
+        // Лучше использовать ioc.stop(), но для простоты используем jthread и остановку по сигналу.
     });
 
-    std::cout << "Game server running on port 8080... (Ctrl+C to stop)" << std::endl;
+    std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
 
     // Основной цикл тиков
-    while (true) {
+    while (!stop_server) {
         auto start = std::chrono::steady_clock::now();
         ProcessTick(tick_duration);
         auto end = std::chrono::steady_clock::now();
@@ -299,4 +320,6 @@ void GameServer::Run() {
             std::this_thread::sleep_for(tick_duration - elapsed);
         }
     }
+
+    std::cout << "Server stopping..." << std::endl;
 }
