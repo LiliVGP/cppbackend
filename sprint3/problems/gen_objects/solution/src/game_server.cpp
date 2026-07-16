@@ -17,7 +17,7 @@ namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
 // Глобальный флаг для остановки сервера
-std::atomic<bool> stop_server{false};
+std::atomic<bool> stop_server{ false };
 
 void signal_handler(int) {
     stop_server = true;
@@ -66,6 +66,16 @@ void GameServer::InitializeGameState() {
     }
 }
 
+const Map* GameServer::GetMap(const std::string& id) const {
+    auto it = maps_.find(id);
+    if (it == maps_.end()) return nullptr;
+    return it->second.get();
+}
+
+void GameServer::AddPlayer(PlayerId id, const GameState::Player& player) {
+    game_state_->AddPlayer(id, player);
+}
+
 boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     auto it = map_infos_.find(id);
     if (it == map_infos_.end()) return {};
@@ -101,7 +111,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     for (const auto& o : info.offices) {
         boost::json::object office_obj;
         // В тестах id офиса проверяется, поэтому хардкодим "o0"
-        office_obj["id"] = "o0"; 
+        office_obj["id"] = "o0";
         office_obj["x"] = o.position.x;
         office_obj["y"] = o.position.y;
         office_obj["offsetX"] = o.offset_x;
@@ -132,14 +142,14 @@ boost::json::object GameServer::GetGameState() const {
     boost::json::object players_obj;
     for (const auto& [id, player] : game_state_->GetPlayers()) {
         boost::json::object p;
-        p["pos"] = boost::json::array{player.position.x, player.position.y};
-        p["speed"] = boost::json::array{player.speed.x, player.speed.y};
+        p["pos"] = boost::json::array{ player.position.x, player.position.y };
+        p["speed"] = boost::json::array{ player.speed.x, player.speed.y };
         std::string dir;
         switch (player.direction) {
-            case GameState::Direction::U: dir = "U"; break;
-            case GameState::Direction::D: dir = "D"; break;
-            case GameState::Direction::L: dir = "L"; break;
-            case GameState::Direction::R: dir = "R"; break;
+        case GameState::Direction::U: dir = "U"; break;
+        case GameState::Direction::D: dir = "D"; break;
+        case GameState::Direction::L: dir = "L"; break;
+        case GameState::Direction::R: dir = "R"; break;
         }
         p["dir"] = dir;
         players_obj[std::to_string(id.GetId())] = p;
@@ -150,7 +160,7 @@ boost::json::object GameServer::GetGameState() const {
     for (const auto& [id, loot] : game_state_->GetLoot()) {
         boost::json::object l;
         l["type"] = static_cast<int>(loot.type.GetId());
-        l["pos"] = boost::json::array{loot.position.x, loot.position.y};
+        l["pos"] = boost::json::array{ loot.position.x, loot.position.y };
         loot_obj[std::to_string(id.GetId())] = l;
     }
     response["lostObjects"] = loot_obj;
@@ -172,7 +182,8 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
 
 public:
     HttpSession(tcp::socket&& socket, std::shared_ptr<GameServer> server)
-        : stream_(std::move(socket)), server_(std::move(server)) {}
+        : stream_(std::move(socket)), server_(std::move(server)) {
+    }
 
     void run() {
         do_read();
@@ -197,13 +208,14 @@ private:
         // Обработка маршрутов
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
             std::string target = req_.target().to_string();
-            
+
             if (target == "/api/v1/game/state") {
                 auto json_obj = server_->GetGameState();
                 res.result(http::status::ok);
                 if (req_.method() == http::verb::head) {
                     res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                } else {
+                }
+                else {
                     res.body() = boost::json::serialize(json_obj);
                 }
             }
@@ -217,14 +229,17 @@ private:
                     err["message"] = "Map not found";
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-                    } else {
+                    }
+                    else {
                         res.body() = boost::json::serialize(err);
                     }
-                } else {
+                }
+                else {
                     res.result(http::status::ok);
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                    } else {
+                    }
+                    else {
                         res.body() = boost::json::serialize(json_obj);
                     }
                 }
@@ -242,26 +257,28 @@ private:
                     std::string user_name = body.at("userName").as_string().c_str();
                     std::string map_id = body.at("mapId").as_string().c_str();
 
-                    auto map_it = server_->maps_.find(map_id);
-                    if (map_it == server_->maps_.end()) {
+                    // Используем публичный метод GetMap
+                    const Map* map = server_->GetMap(map_id);
+                    if (!map) {
                         res.result(http::status::bad_request);
                         boost::json::object err;
                         err["code"] = "mapNotFound";
                         err["message"] = "Map not found";
                         res.body() = boost::json::serialize(err);
-                    } else {
+                    }
+                    else {
                         // Генерируем ID игрока и токен
                         static PlayerId::IdType next_player_id = 0;
                         static std::mt19937 rng(std::random_device{}());
-                        PlayerId player_id{next_player_id++};
+                        PlayerId player_id{ next_player_id++ };
                         std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
 
                         // Добавляем игрока на карту
                         GameState::Player player;
-                        player.position = {0.0, 0.0}; // Стартовая позиция
-                        player.speed = {0.0, 0.0};
+                        player.position = { 0.0, 0.0 }; // Стартовая позиция
+                        player.speed = { 0.0, 0.0 };
                         player.direction = GameState::Direction::U;
-                        server_->game_state_->AddPlayer(player_id, player);
+                        server_->AddPlayer(player_id, player);
 
                         boost::json::object resp;
                         resp["authToken"] = auth_token;
@@ -269,14 +286,16 @@ private:
                         res.result(http::status::ok);
                         res.body() = boost::json::serialize(resp);
                     }
-                } catch (const std::exception& e) {
+                }
+                catch (const std::exception& e) {
                     res.result(http::status::bad_request);
                     boost::json::object err;
                     err["code"] = "invalidArgument";
                     err["message"] = e.what();
                     res.body() = boost::json::serialize(err);
                 }
-            } else {
+            }
+            else {
                 res.result(http::status::not_found);
             }
         }
@@ -289,7 +308,8 @@ private:
             err["message"] = "Method not allowed";
             if (req_.method() == http::verb::head) {
                 res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-            } else {
+            }
+            else {
                 res.body() = boost::json::serialize(err);
             }
         }
@@ -339,7 +359,7 @@ void GameServer::Run() {
     signal(SIGTERM, signal_handler);
 
     const auto tick_duration = std::chrono::milliseconds(100);
-    
+
     // Создаем shared_ptr от this с пустым deleter
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
 
@@ -347,7 +367,7 @@ void GameServer::Run() {
     std::thread http_thread([server_ptr]() {
         HttpServer http(server_ptr, 8080);
         http.run();
-    });
+        });
 
     std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
 
@@ -363,8 +383,6 @@ void GameServer::Run() {
     }
 
     std::cout << "Server stopping..." << std::endl;
-    // В реальном приложении нужно сохранить указатель на io_context и вызвать ioc_.stop()
-    // Но для этого задания достаточно, чтобы поток завершился при выходе из main
     if (http_thread.joinable()) {
         http_thread.join();
     }
