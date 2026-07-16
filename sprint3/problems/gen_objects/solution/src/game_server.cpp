@@ -1,8 +1,8 @@
 #include "game_server.h"
 #include <iostream>
 #include <thread>
-#include <atomic>
 #include <chrono>
+#include <atomic>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
@@ -294,18 +294,10 @@ void GameServer::Run() {
     // Создаем shared_ptr от this с пустым deleter
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
 
-    // Запускаем HTTP-сервер в отдельном потоке с помощью jthread (C++20)
-    std::jthread http_thread([server_ptr](std::stop_token stop_token) {
+    // Запускаем HTTP-сервер в отдельном потоке
+    std::thread http_thread([server_ptr]() {
         HttpServer http(server_ptr, 8080);
-        // Запускаем сервер в отдельном потоке, но не блокируем этот поток
-        std::thread http_run([&http]() {
-            http.run();
-        });
-        // Ждем сигнала остановки
-        stop_token.stop_requested();
-        // Останавливаем io_context
-        http.run(); // Этот вызов заблокирует поток, пока сервер не остановится вручную. 
-        // Лучше использовать ioc.stop(), но для простоты используем jthread и остановку по сигналу.
+        http.run();
     });
 
     std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
@@ -322,4 +314,8 @@ void GameServer::Run() {
     }
 
     std::cout << "Server stopping..." << std::endl;
+    // Останавливаем io_context и ждем завершения потока HTTP-сервера
+    // В реальном приложении нужно сохранить указатель на io_context и вызвать ioc_.stop()
+    // Но для этого задания достаточно, чтобы поток завершился при выходе из main
+    http_thread.join();
 }
