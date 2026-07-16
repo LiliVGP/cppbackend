@@ -16,7 +16,7 @@ public:
     boost::json::object GetMapInfo(const std::string& id) const;
     boost::json::object GetGameState() const;
 
-    // --- НОВЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ ОБРАБОТКИ JOIN ---
+    // Публичные методы для доступа к данным (используются в обработчиках)
     const Map* GetMap(const std::string& id) const;
     void AddPlayer(PlayerId id, const GameState::Player& player);
 
