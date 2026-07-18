@@ -22,7 +22,7 @@ RUN cd /app/build && \
 
 FROM ubuntu:22.04 as run
 
-# Устанавливаем Python и venv (они нужны для тестов)
+# Устанавливаем Python и всё необходимое для работы тестов
 RUN apt update && \
     apt install -y \
       python3 \
@@ -31,9 +31,13 @@ RUN apt update && \
       ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
+# Создаём пользователя www
 RUN groupadd -r www && useradd -r -g www www
 
-RUN mkdir -p /app/data && chown -R www:www /app
+# Создаём директории для приложения и тестового окружения
+RUN mkdir -p /app/data \
+             /app/static \
+             /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3
 
 # Копируем собранный сервер
 COPY --from=build /app/build/game_server /app/
@@ -42,16 +46,16 @@ COPY --from=build /app/build/game_server /app/
 COPY ./data /app/data
 COPY ./static /app/static
 
-# Создаём виртуальное окружение в /tmp (проблем с правами не будет)
-RUN python3 -m venv /tmp/venv && \
-    /tmp/venv/bin/pip install pytest pytest-quickcheck pytest-xprocess pytest-parallel requests
+# Создаём виртуальное окружение в /home/runner/work/... (как ожидает скрипт)
+# Здесь мы работаем от root, чтобы создать директорию и установить пакеты
+RUN python3 -m venv /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv && \
+    /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv/bin/pip install pytest pytest-quickcheck pytest-xprocess pytest-parallel requests
 
-# Создаём директорию, которую ищет скрипт run.sh
-RUN mkdir -p /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3
+# Передаём права на всю директорию /home/runner/... пользователю www
+# Теперь пользователь www сможет активировать окружение (там есть файл activate)
+RUN chown -R www:www /home/runner/work/cppbackend/
 
-# Создаём символическую ссылку: тесты будут искать /home/runner/..., а реально использовать /tmp/venv
-RUN ln -s /tmp/venv /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv
-
+# Переключаемся на пользователя www
 USER www
 WORKDIR /app
 
