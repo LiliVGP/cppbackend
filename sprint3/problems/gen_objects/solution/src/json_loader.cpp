@@ -33,7 +33,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
     json::object obj = root.as_object();
     ConfigLoader loader;
 
-    // Парсим lootGeneratorConfig
     auto loot_gen_it = obj.find("lootGeneratorConfig");
     if (loot_gen_it != obj.end()) {
         auto& config_obj = loot_gen_it->value().as_object();
@@ -42,7 +41,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
         loader.loot_gen_config_ = { ParsePeriod(period), probability };
     }
 
-    // Парсим карты
     auto maps_it = obj.find("maps");
     if (maps_it != obj.end()) {
         auto& maps_arr = maps_it->value().as_array();
@@ -53,7 +51,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
             map_info.id = std::string(map_obj.at("id").as_string());
             map_info.name = std::string(map_obj.at("name").as_string());
 
-            // Парсим дороги
             auto roads_it = map_obj.find("roads");
             if (roads_it != map_obj.end()) {
                 auto& roads_arr = roads_it->value().as_array();
@@ -67,7 +64,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Парсим здания
             auto buildings_it = map_obj.find("buildings");
             if (buildings_it != map_obj.end()) {
                 auto& buildings_arr = buildings_it->value().as_array();
@@ -82,7 +78,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Парсим офисы
             auto offices_it = map_obj.find("offices");
             if (offices_it != map_obj.end()) {
                 auto& offices_arr = offices_it->value().as_array();
@@ -97,7 +92,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Парсим типы трофеев
             auto loot_types_it = map_obj.find("lootTypes");
             if (loot_types_it != map_obj.end()) {
                 auto& loot_types_arr = loot_types_it->value().as_array();

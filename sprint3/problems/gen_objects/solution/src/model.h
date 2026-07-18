@@ -98,7 +98,6 @@ public:
     std::chrono::milliseconds GetTime() const { return time_; }
     void SetTime(std::chrono::milliseconds time) { time_ = time; }
 
-    // Генерирует новые трофеи за прошедшее время
     void GenerateLoot(std::chrono::milliseconds delta);
 
 private:

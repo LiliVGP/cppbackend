@@ -1,12 +1,11 @@
 #include <iostream>
 #include <string>
-
+#include <fstream>
 #include "game_server.h"
 
 int main(int argc, char* argv[]) {
     using namespace std::literals;
 
-    // Парсинг аргументов командной строки
     std::string config_file = "data/config.json";
     std::string www_root = "static";
 
@@ -26,13 +25,19 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        // Создаём и запускаем сервер
+        // Проверка существования конфигурационного файла (без std::filesystem)
+        std::ifstream test_file(config_file);
+        if (!test_file.is_open()) {
+            throw std::runtime_error("Config file not found: " + config_file);
+        }
+        test_file.close();
+
         GameServer server(config_file);
         server.Run();
         return 0;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cout << "FATAL ERROR: " << e.what() << std::flush;
         return 1;
     }
 }

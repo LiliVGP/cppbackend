@@ -27,7 +27,7 @@ GameServer::GameServer(const std::string& config_file) {
         config_ = std::make_unique<ConfigLoader>(ConfigLoader::LoadFromFile(config_file));
         InitializeMaps();
         InitializeGameState();
-        std::cout << "Game server initialized successfully!" << std::endl;
+        std::cout << "Game server initialized successfully!" << std::flush << std::endl;
     }
     catch (const std::exception& e) {
         throw std::runtime_error("Failed to initialize game server: " + std::string(e.what()));
@@ -37,7 +37,7 @@ GameServer::GameServer(const std::string& config_file) {
 void GameServer::InitializeMaps() {
     const auto& map_infos = config_->GetMaps();
     if (map_infos.empty()) {
-        std::cerr << "Warning: No maps loaded from config!" << std::endl;
+        std::cout << "Warning: No maps loaded from config!" << std::flush << std::endl;
     }
     for (const auto& map_info : map_infos) {
         auto map = std::make_unique<Map>(
@@ -366,21 +366,21 @@ void GameServer::Run() {
             }
         }
         catch (const std::exception& e) {
-            std::cerr << "Tick thread exception: " << e.what() << std::endl;
+            std::cout << "Tick thread exception: " << e.what() << std::flush << std::endl;
             throw;
         }
         });
 
     auto server_ptr = std::shared_ptr<GameServer>(this, [](auto*) {});
-    std::cout << "Starting HTTP server on port 8080..." << std::endl;
+    std::cout << "Starting HTTP server on port 8080..." << std::flush << std::endl;
 
     try {
         HttpServer http(server_ptr, 8080);
-        std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
+        std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::flush << std::endl;
         http.run(); // Главный поток обрабатывает запросы
     }
     catch (const std::exception& e) {
-        std::cerr << "HTTP server exception: " << e.what() << std::endl;
+        std::cout << "HTTP server exception: " << e.what() << std::flush << std::endl;
         stop_server = true;
         if (tick_thread.joinable()) {
             tick_thread.join();
@@ -392,5 +392,5 @@ void GameServer::Run() {
     if (tick_thread.joinable()) {
         tick_thread.join();
     }
-    std::cout << "Server stopped." << std::endl;
+    std::cout << "Server stopped." << std::flush << std::endl;
 }
