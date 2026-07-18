@@ -30,19 +30,27 @@ RUN groupadd -r www && useradd -r -g www www
 
 RUN mkdir -p /app/data && chown -R www:www /app
 
-# Единственная строка копирования — именно так, как вы попросили
+# Копируем собранный сервер
 COPY --from=build /app/build/game_server /app/
 
+# Копируем статику и данные
 COPY ./data /app/data
 COPY ./static /app/static
 
+# Создаём виртуальное окружение в /tmp (проблем с правами не будет)
+RUN python3 -m venv /tmp/venv && \
+    /tmp/venv/bin/pip install pytest pytest-quickcheck pytest-xprocess pytest-parallel requests
+
+# Создаём директорию, которую ищет скрипт run.sh
+RUN mkdir -p /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3
+
+# Создаём символическую ссылку: тесты будут искать /home/runner/..., а реально использовать /tmp/venv
+RUN ln -s /tmp/venv /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv
+
 USER www
 WORKDIR /app
-RUN mkdir -p /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3 && \
-    python3 -m venv /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv && \
-    /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv/bin/pip install pytest pytest-quickcheck pytest-xprocess pytest-parallel requests
 
 ENV STATIC_ROOT=/app/static
 
-# Правильный запуск с флагами
-ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static", "/app/game_server_tests"]
+# Запускаем сервер с правильными флагами
+ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
