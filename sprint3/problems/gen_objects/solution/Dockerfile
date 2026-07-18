@@ -22,8 +22,13 @@ RUN cd /app/build && \
 
 FROM ubuntu:22.04 as run
 
+# Устанавливаем Python и venv (они нужны для тестов)
 RUN apt update && \
-    apt install -y ca-certificates && \
+    apt install -y \
+      python3 \
+      python3-venv \
+      python3-pip \
+      ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r www && useradd -r -g www www
