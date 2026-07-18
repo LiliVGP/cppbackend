@@ -38,6 +38,9 @@ COPY ./static /app/static
 
 USER www
 WORKDIR /app
+RUN mkdir -p /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3 && \
+    python3 -m venv /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv && \
+    /home/runner/work/cppbackend/cppbackend/cpp-backend-tests-practicum/scripts/sprint3/.venv/bin/pip install pytest pytest-quickcheck pytest-xprocess pytest-parallel requests
 
 ENV STATIC_ROOT=/app/static
 
