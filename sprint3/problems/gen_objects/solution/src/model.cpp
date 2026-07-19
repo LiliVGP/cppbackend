@@ -1,31 +1,7 @@
 #include "model.h"
 #include <cmath>
 #include <iostream>
-
-// Вспомогательная функция для проверки, лежит ли точка на отрезке
-static bool IsPointOnSegment(double x, double y, double x0, double y0, double x1, double y1) {
-    const double eps = 1e-6;
-    
-    double dx = x1 - x0;
-    double dy = y1 - y0;
-    double len2 = dx * dx + dy * dy;
-    
-    if (len2 < eps * eps) {
-        return std::abs(x - x0) < eps && std::abs(y - y0) < eps;
-    }
-    
-    double cross = std::abs((x - x0) * dy - (y - y0) * dx);
-    if (cross / std::sqrt(len2) > eps) {
-        return false;
-    }
-    
-    double dot = (x - x0) * dx + (y - y0) * dy;
-    if (dot < 0 || dot > len2) {
-        return false;
-    }
-    
-    return true;
-}
+#include <vector>
 
 void GameState::GenerateLoot(std::chrono::milliseconds delta) {
     if (!current_map_ || !loot_generator_) {
@@ -42,59 +18,51 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         return;
     }
 
+    // Создаём список всех допустимых точек на всех дорогах
+    std::vector<Point> valid_points;
+    const int points_per_road = 100;
+    
+    for (const auto& road : roads) {
+        // Генерируем points_per_road точек на каждой дороге
+        for (int i = 0; i < points_per_road; ++i) {
+            std::uniform_real_distribution<double> dist(0.0, 1.0);
+            double t = dist(*rng_);
+            
+            Point p;
+            const double eps = 1e-9;
+            
+            if (std::abs(road.x0 - road.x1) < eps) {
+                // Вертикальная дорога: x фиксирован
+                p.x = road.x0;
+                p.y = road.y0 + (road.y1 - road.y0) * t;
+            } else if (std::abs(road.y0 - road.y1) < eps) {
+                // Горизонтальная дорога: y фиксирован
+                p.x = road.x0 + (road.x1 - road.x0) * t;
+                p.y = road.y0;
+            } else {
+                // Диагональная дорога (не должна возникать)
+                p.x = road.x0 + (road.x1 - road.x0) * t;
+                p.y = road.y0 + (road.y1 - road.y0) * t;
+            }
+            
+            valid_points.push_back(p);
+        }
+    }
+
+    if (valid_points.empty()) {
+        return;
+    }
+
+    // Выбираем случайные точки из списка допустимых
+    std::uniform_int_distribution<size_t> point_dist(0, valid_points.size() - 1);
+    
     for (unsigned i = 0; i < generated; ++i) {
         // Выбираем случайный тип трофея
         std::uniform_int_distribution<size_t> type_dist(0, current_map_->GetLootTypesCount() - 1);
         LootTypeId type{ static_cast<LootTypeId::IdType>(type_dist(*rng_)) };
 
-        Point position;
-        bool valid_position = false;
-        int attempts = 0;
-        const int max_attempts = 100;
-
-        // Пытаемся сгенерировать точку на дороге
-        while (!valid_position && attempts < max_attempts) {
-            attempts++;
-            
-            // Выбираем случайную дорогу
-            std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
-            const auto& road = roads[road_dist(*rng_)];
-            
-            // Генерируем точку на дороге с учётом её ориентации
-            std::uniform_real_distribution<double> dist(0.0, 1.0);
-            double t = dist(*rng_);
-            
-            // Определяем тип дороги с явным сравнением
-            const double eps = 1e-9;
-            bool is_vertical = std::abs(road.x0 - road.x1) < eps;
-            bool is_horizontal = std::abs(road.y0 - road.y1) < eps;
-            
-            if (is_vertical) {
-                // Вертикальная дорога: x фиксирован
-                position.x = road.x0;
-                position.y = road.y0 + (road.y1 - road.y0) * t;
-            } else if (is_horizontal) {
-                // Горизонтальная дорога: y фиксирован
-                position.x = road.x0 + (road.x1 - road.x0) * t;
-                position.y = road.y0;
-            } else {
-                // Диагональная дорога (не должна возникать)
-                position.x = road.x0 + (road.x1 - road.x0) * t;
-                position.y = road.y0 + (road.y1 - road.y0) * t;
-            }
-
-            // Проверяем, что точка действительно лежит на дороге
-            valid_position = IsPointOnSegment(position.x, position.y, 
-                                             road.x0, road.y0, 
-                                             road.x1, road.y1);
-        }
-
-        if (!valid_position) {
-            // Если не удалось сгенерировать точку, пропускаем
-            std::cerr << "Warning: Failed to generate valid loot position after " 
-                      << max_attempts << " attempts" << std::endl;
-            continue;
-        }
+        // Выбираем случайную допустимую точку
+        Point position = valid_points[point_dist(*rng_)];
 
         // Добавляем трофей
         AddLoot(next_loot_id_++, type, position);
