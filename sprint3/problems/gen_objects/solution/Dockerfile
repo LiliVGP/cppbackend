@@ -18,12 +18,12 @@ COPY tests ./tests
 COPY data ./data
 COPY static ./static
 
+# Conan: устанавливаем зависимости
 RUN conan profile new default --detect && \
     conan install . --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
 
-# Собираем явно в папку build
-RUN mkdir -p build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+# CMake: собираем прямо в корне /app
+RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
     cmake --build .
 
 # ---- СТАДИЯ ЗАПУСКА ----
@@ -35,7 +35,6 @@ RUN apt-get update && \
       ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Создаём папку /app и пользователя www
 RUN mkdir -p /app && \
     useradd -m -u 1000 www && \
     chown -R www:www /app
@@ -43,8 +42,8 @@ RUN mkdir -p /app && \
 USER www
 WORKDIR /app
 
-# Копируем из папки build внутри стадии сборки
-COPY --from=build /app/build/game_server /app/game_server
+# Копируем бинарник (он лежит в /app, потому что собирали в корне)
+COPY --from=build /app/game_server /app/game_server
 COPY --from=build /app/data /app/data
 COPY --from=build /app/static /app/static
 
