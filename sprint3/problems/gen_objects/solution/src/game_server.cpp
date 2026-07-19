@@ -141,7 +141,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     boost::json::array offices;
     for (const auto& o : info.offices) {
         boost::json::object office_obj;
-        office_obj["id"] = "o0";
+        office_obj["id"] = o.id;
         office_obj["x"] = to_json_number(o.position.x);
         office_obj["y"] = to_json_number(o.position.y);
         office_obj["offsetX"] = to_json_number(o.offset_x);
@@ -220,108 +220,128 @@ private:
         res.set(http::field::cache_control, "no-cache");
         res.set(http::field::content_type, "application/json");
 
-        if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
-            std::string target = req_.target().to_string();
+        try {
+            if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
+                std::string target = req_.target().to_string();
 
-            if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
-                auto json_obj = server_->GetGameState();
-                res.result(http::status::ok);
-                if (req_.method() == http::verb::head) {
-                    res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                }
-                else {
-                    res.body() = boost::json::serialize(json_obj);
-                }
-            }
-            else if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
-                std::string map_id = target.substr(target.rfind('/') + 1);
-                auto json_obj = server_->GetMapInfo(map_id);
-                if (json_obj.empty()) {
-                    res.result(http::status::not_found);
-                    boost::json::object err;
-                    err["code"] = "mapNotFound";
-                    err["message"] = "Map not found";
-                    if (req_.method() == http::verb::head) {
-                        res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-                    }
-                    else {
-                        res.body() = boost::json::serialize(err);
-                    }
-                }
-                else {
+                if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
+                    auto json_obj = server_->GetGameState();
                     res.result(http::status::ok);
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
                     }
                     else {
                         res.body() = boost::json::serialize(json_obj);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
                     }
                 }
-            }
-            else {
-                res.result(http::status::not_found);
-            }
-        }
-        else if (req_.method() == http::verb::post) {
-            std::string target = req_.target().to_string();
-
-            if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
-                try {
-                    auto body = boost::json::parse(req_.body()).as_object();
-                    int delta = body.at("timeDelta").as_int64();
-                    server_->ProcessTick(std::chrono::milliseconds(delta));
-
-                    boost::json::object resp;
-                    res.result(http::status::ok);
-                    res.body() = boost::json::serialize(resp);
-                }
-                catch (const std::exception& e) {
-                    res.result(http::status::bad_request);
-                    boost::json::object err;
-                    err["code"] = "invalidArgument";
-                    err["message"] = e.what();
-                    res.body() = boost::json::serialize(err);
-                }
-            }
-            else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
-                try {
-                    auto body = boost::json::parse(req_.body()).as_object();
-                    std::string user_name = body.at("userName").as_string().c_str();
-                    std::string map_id = body.at("mapId").as_string().c_str();
-
-                    const Map* map = server_->GetMap(map_id);
-                    if (!map) {
-                        res.result(http::status::bad_request);
+                else if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
+                    std::string map_id = target.substr(target.rfind('/') + 1);
+                    auto json_obj = server_->GetMapInfo(map_id);
+                    if (json_obj.empty()) {
+                        res.result(http::status::not_found);
                         boost::json::object err;
                         err["code"] = "mapNotFound";
                         err["message"] = "Map not found";
-                        res.body() = boost::json::serialize(err);
+                        if (req_.method() == http::verb::head) {
+                            res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
+                        }
+                        else {
+                            res.body() = boost::json::serialize(err);
+                            res.set(http::field::content_length, std::to_string(res.body().size()));
+                        }
                     }
                     else {
-                        static PlayerId::IdType next_player_id = 0;
-                        static std::mt19937 rng(std::random_device{}());
-                        PlayerId player_id{ next_player_id++ };
-                        std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
-
-                        GameState::Player player;
-                        player.position = { 0.0, 0.0 };
-                        player.speed = { 0.0, 0.0 };
-                        player.direction = GameState::Direction::U;
-                        server_->AddPlayer(player_id, player);
-
-                        boost::json::object resp;
-                        resp["authToken"] = auth_token;
-                        resp["playerId"] = static_cast<int>(player_id.GetId());
                         res.result(http::status::ok);
-                        res.body() = boost::json::serialize(resp);
+                        if (req_.method() == http::verb::head) {
+                            res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
+                        }
+                        else {
+                            res.body() = boost::json::serialize(json_obj);
+                            res.set(http::field::content_length, std::to_string(res.body().size()));
+                        }
                     }
                 }
-                catch (const std::exception& e) {
-                    res.result(http::status::bad_request);
+                else {
+                    res.result(http::status::not_found);
+                    res.set(http::field::content_length, "0");
+                }
+            }
+            else if (req_.method() == http::verb::post) {
+                std::string target = req_.target().to_string();
+
+                if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
+                    try {
+                        auto body = boost::json::parse(req_.body()).as_object();
+                        int delta = body.at("timeDelta").as_int64();
+                        server_->ProcessTick(std::chrono::milliseconds(delta));
+
+                        boost::json::object resp;
+                        res.result(http::status::ok);
+                        res.body() = boost::json::serialize(resp);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
+                    }
+                    catch (const std::exception& e) {
+                        res.result(http::status::bad_request);
+                        boost::json::object err;
+                        err["code"] = "invalidArgument";
+                        err["message"] = e.what();
+                        res.body() = boost::json::serialize(err);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
+                    }
+                }
+                else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
+                    try {
+                        auto body = boost::json::parse(req_.body()).as_object();
+                        std::string user_name = body.at("userName").as_string().c_str();
+                        std::string map_id = body.at("mapId").as_string().c_str();
+
+                        const Map* map = server_->GetMap(map_id);
+                        if (!map) {
+                            res.result(http::status::bad_request);
+                            boost::json::object err;
+                            err["code"] = "mapNotFound";
+                            err["message"] = "Map not found";
+                            res.body() = boost::json::serialize(err);
+                            res.set(http::field::content_length, std::to_string(res.body().size()));
+                        }
+                        else {
+                            static PlayerId::IdType next_player_id = 0;
+                            static std::mt19937 rng(std::random_device{}());
+                            PlayerId player_id{ next_player_id++ };
+                            std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
+
+                            GameState::Player player;
+                            player.position = { 0.0, 0.0 };
+                            player.speed = { 0.0, 0.0 };
+                            player.direction = GameState::Direction::U;
+                            server_->AddPlayer(player_id, player);
+
+                            boost::json::object resp;
+                            resp["authToken"] = auth_token;
+                            resp["playerId"] = static_cast<int>(player_id.GetId());
+                            res.result(http::status::ok);
+                            res.body() = boost::json::serialize(resp);
+                            res.set(http::field::content_length, std::to_string(res.body().size()));
+                        }
+                    }
+                    catch (const std::exception& e) {
+                        res.result(http::status::bad_request);
+                        boost::json::object err;
+                        err["code"] = "invalidArgument";
+                        err["message"] = e.what();
+                        res.body() = boost::json::serialize(err);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
+                    }
+                }
+                else {
+                    res.result(http::status::method_not_allowed);
+                    res.set(http::field::allow, "GET, HEAD");
                     boost::json::object err;
-                    err["code"] = "invalidArgument";
-                    err["message"] = e.what();
+                    err["code"] = "invalidMethod";
+                    err["message"] = "Method not allowed";
                     res.body() = boost::json::serialize(err);
+                    res.set(http::field::content_length, std::to_string(res.body().size()));
                 }
             }
             else {
@@ -331,17 +351,16 @@ private:
                 err["code"] = "invalidMethod";
                 err["message"] = "Method not allowed";
                 res.body() = boost::json::serialize(err);
+                res.set(http::field::content_length, std::to_string(res.body().size()));
             }
         }
-        else {
-            res.result(http::status::method_not_allowed);
-            res.set(http::field::allow, "GET, HEAD");
-            boost::json::object err;
-            err["code"] = "invalidMethod";
-            err["message"] = "Method not allowed";
-            res.body() = boost::json::serialize(err);
+        catch (const std::exception& e) {
+            res.result(http::status::internal_server_error);
+            res.body() = "Internal server error";
+            res.set(http::field::content_length, std::to_string(res.body().size()));
         }
 
+        // Если тело пустое и Content-Length не установлен, ставим 0
         if (res.body().empty() && res.find(http::field::content_length) == res.end()) {
             res.set(http::field::content_length, "0");
         }

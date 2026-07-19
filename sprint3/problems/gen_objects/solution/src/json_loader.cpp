@@ -69,21 +69,21 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
 
                     double x0 = 0.0, y0 = 0.0, x1 = 0.0, y1 = 0.0;
 
-                    if (road_obj.contains("x0") && road_obj.at("x0").is_double()) {
-                        x0 = road_obj.at("x0").as_double();
+                    if (road_obj.contains("x0") && road_obj.at("x0").is_number()) {
+                        x0 = road_obj.at("x0").to_number<double>();
                     }
-                    if (road_obj.contains("y0") && road_obj.at("y0").is_double()) {
-                        y0 = road_obj.at("y0").as_double();
+                    if (road_obj.contains("y0") && road_obj.at("y0").is_number()) {
+                        y0 = road_obj.at("y0").to_number<double>();
                     }
 
-                    if (road_obj.contains("x1") && road_obj.at("x1").is_double()) {
-                        x1 = road_obj.at("x1").as_double();
+                    if (road_obj.contains("x1") && road_obj.at("x1").is_number()) {
+                        x1 = road_obj.at("x1").to_number<double>();
                     }
                     else {
                         x1 = x0;
                     }
-                    if (road_obj.contains("y1") && road_obj.at("y1").is_double()) {
-                        y1 = road_obj.at("y1").as_double();
+                    if (road_obj.contains("y1") && road_obj.at("y1").is_number()) {
+                        y1 = road_obj.at("y1").to_number<double>();
                     }
                     else {
                         y1 = y0;
@@ -100,17 +100,17 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                     auto& building_obj = building_val.as_object();
                     Map::Building building = {};
 
-                    if (building_obj.contains("x") && building_obj.at("x").is_double()) {
-                        building.position.x = building_obj.at("x").as_double();
+                    if (building_obj.contains("x") && building_obj.at("x").is_number()) {
+                        building.position.x = building_obj.at("x").to_number<double>();
                     }
-                    if (building_obj.contains("y") && building_obj.at("y").is_double()) {
-                        building.position.y = building_obj.at("y").as_double();
+                    if (building_obj.contains("y") && building_obj.at("y").is_number()) {
+                        building.position.y = building_obj.at("y").to_number<double>();
                     }
-                    if (building_obj.contains("w") && building_obj.at("w").is_double()) {
-                        building.width = building_obj.at("w").as_double();
+                    if (building_obj.contains("w") && building_obj.at("w").is_number()) {
+                        building.width = building_obj.at("w").to_number<double>();
                     }
-                    if (building_obj.contains("h") && building_obj.at("h").is_double()) {
-                        building.height = building_obj.at("h").as_double();
+                    if (building_obj.contains("h") && building_obj.at("h").is_number()) {
+                        building.height = building_obj.at("h").to_number<double>();
                     }
 
                     map_info.buildings.push_back(building);
@@ -124,17 +124,21 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                     auto& office_obj = office_val.as_object();
                     Map::Office office = {};
 
-                    if (office_obj.contains("x") && office_obj.at("x").is_double()) {
-                        office.position.x = office_obj.at("x").as_double();
+                    if (office_obj.contains("id") && office_obj.at("id").is_string()) {
+                        office.id = office_obj.at("id").as_string().c_str();
                     }
-                    if (office_obj.contains("y") && office_obj.at("y").is_double()) {
-                        office.position.y = office_obj.at("y").as_double();
+
+                    if (office_obj.contains("x") && office_obj.at("x").is_number()) {
+                        office.position.x = office_obj.at("x").to_number<double>();
                     }
-                    if (office_obj.contains("offsetX") && office_obj.at("offsetX").is_double()) {
-                        office.offset_x = office_obj.at("offsetX").as_double();
+                    if (office_obj.contains("y") && office_obj.at("y").is_number()) {
+                        office.position.y = office_obj.at("y").to_number<double>();
                     }
-                    if (office_obj.contains("offsetY") && office_obj.at("offsetY").is_double()) {
-                        office.offset_y = office_obj.at("offsetY").as_double();
+                    if (office_obj.contains("offsetX") && office_obj.at("offsetX").is_number()) {
+                        office.offset_x = office_obj.at("offsetX").to_number<double>();
+                    }
+                    if (office_obj.contains("offsetY") && office_obj.at("offsetY").is_number()) {
+                        office.offset_y = office_obj.at("offsetY").to_number<double>();
                     }
 
                     map_info.offices.push_back(office);

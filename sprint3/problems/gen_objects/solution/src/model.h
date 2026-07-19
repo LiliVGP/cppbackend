@@ -26,6 +26,7 @@ public:
     };
 
     struct Office {
+        std::string id;
         Point position;
         double offset_x, offset_y;
     };
