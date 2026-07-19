@@ -12,15 +12,12 @@ public:
     explicit GameServer(const std::string& config_file);
     void Run();
 
-    // Методы для формирования ответов API
     boost::json::object GetMapInfo(const std::string& id) const;
     boost::json::object GetGameState() const;
 
-    // Публичные методы для доступа к данным (используются в обработчиках)
     const Map* GetMap(const std::string& id) const;
     void AddPlayer(PlayerId id, const GameState::Player& player);
 
-    // Добавляем метод для обработки тиков
     void ProcessTick(std::chrono::milliseconds delta);
 
 private:

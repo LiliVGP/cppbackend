@@ -33,7 +33,6 @@ GameServer::GameServer(const std::string& config_file) {
         std::cout << "Game server initialized successfully!" << std::endl;
     }
     catch (const std::exception& e) {
-        // Выводим полное сообщение об ошибке
         std::cout << "FATAL ERROR: " << e.what() << std::endl;
         throw std::runtime_error("Failed to initialize game server: " + std::string(e.what()));
     }
@@ -45,7 +44,6 @@ void GameServer::InitializeMaps() {
         std::cout << "Warning: No maps loaded from config!" << std::endl;
     }
     for (const auto& map_info : map_infos) {
-        // Создаем модель карты, передавая количество типов трофеев
         auto map = std::make_unique<Map>(
             map_info.id,
             map_info.name,
@@ -55,7 +53,6 @@ void GameServer::InitializeMaps() {
         for (const auto& building : map_info.buildings) map->AddBuilding(building);
         for (const auto& office : map_info.offices) map->AddOffice(office);
         maps_[map_info.id] = std::move(map);
-        // Сохраняем полную информацию для API
         map_infos_[map_info.id] = map_info;
     }
     std::cout << "Loaded " << maps_.size() << " maps" << std::endl;
@@ -148,7 +145,6 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     }
     obj["offices"] = offices;
 
-    // Вставляем сохраненный массив lootTypes
     obj["lootTypes"] = info.loot_types;
 
     return obj;
@@ -174,7 +170,6 @@ boost::json::object GameServer::GetGameState() const {
     }
     response["players"] = players_obj;
 
-    // Формируем lostObjects из состояния игры
     boost::json::object loot_obj;
     for (const auto& [id, loot] : game_state_->GetLoot()) {
         boost::json::object l;
@@ -328,21 +323,18 @@ private:
                 }
             }
             else {
+                // Если путь не найден, возвращаем 404
                 res.result(http::status::not_found);
             }
         }
         else {
+            // Если метод не поддерживается, возвращаем 405
             res.result(http::status::method_not_allowed);
             res.set(http::field::allow, "GET, HEAD");
             boost::json::object err;
             err["code"] = "invalidMethod";
             err["message"] = "Method not allowed";
-            if (req_.method() == http::verb::head) {
-                res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-            }
-            else {
-                res.body() = boost::json::serialize(err);
-            }
+            res.body() = boost::json::serialize(err);
         }
 
         if (res.body().empty() && res.find(http::field::content_length) == res.end()) {
@@ -395,7 +387,6 @@ void GameServer::Run() {
     const auto tick_duration = std::chrono::milliseconds(100);
     std::cout << "Tick duration: " << tick_duration.count() << "ms" << std::endl;
 
-    // Тики в отдельном потоке
     std::thread tick_thread([this, tick_duration]() {
         try {
             std::cout << "Tick thread started" << std::endl;
@@ -415,16 +406,14 @@ void GameServer::Run() {
         }
         });
 
-    auto server_ptr = std::shared_ptr<GameServer>(this, [](GameServer* p) {
-        // Ничего не делаем, объект управляется извне
-        });
+    auto server_ptr = std::shared_ptr<GameServer>(this, [](GameServer* p) {});
 
     std::cout << "Starting HTTP server on port 8080..." << std::endl;
 
     try {
         HttpServer http(server_ptr, 8080);
         std::cout << "HTTP server started on port 8080" << std::endl;
-        http.run(); // Главный поток обрабатывает запросы
+        http.run();
     }
     catch (const std::exception& e) {
         std::cerr << "HTTP server exception: " << e.what() << std::endl;
