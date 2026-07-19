@@ -29,7 +29,8 @@ public:
         std::vector<Road> roads;
         std::vector<Map::Building> buildings;
         std::vector<Map::Office> offices;
-        std::vector<LootTypeInfo> loot_types;
+        // ИЗМЕНЕНИЕ: Храним JSON-массив, а не вектор структур
+        boost::json::array loot_types;
     };
 
     static ConfigLoader LoadFromFile(const std::string& path);

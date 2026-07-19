@@ -24,12 +24,17 @@ void signal_handler(int) {
 
 GameServer::GameServer(const std::string& config_file) {
     try {
+        std::cout << "Starting server with config: " << config_file << std::endl;
         config_ = std::make_unique<ConfigLoader>(ConfigLoader::LoadFromFile(config_file));
+        std::cout << "Config loaded successfully" << std::endl;
+
         InitializeMaps();
         InitializeGameState();
         std::cout << "Game server initialized successfully!" << std::endl;
     }
     catch (const std::exception& e) {
+        // Выводим полное сообщение об ошибке
+        std::cout << "FATAL ERROR: " << e.what() << std::endl;
         throw std::runtime_error("Failed to initialize game server: " + std::string(e.what()));
     }
 }
@@ -40,6 +45,7 @@ void GameServer::InitializeMaps() {
         std::cout << "Warning: No maps loaded from config!" << std::endl;
     }
     for (const auto& map_info : map_infos) {
+        // Создаем модель карты, передавая количество типов трофеев
         auto map = std::make_unique<Map>(
             map_info.id,
             map_info.name,
@@ -49,12 +55,17 @@ void GameServer::InitializeMaps() {
         for (const auto& building : map_info.buildings) map->AddBuilding(building);
         for (const auto& office : map_info.offices) map->AddOffice(office);
         maps_[map_info.id] = std::move(map);
+        // Сохраняем полную информацию для API
         map_infos_[map_info.id] = map_info;
     }
+    std::cout << "Loaded " << maps_.size() << " maps" << std::endl;
 }
 
 void GameServer::InitializeGameState() {
     auto& gen_config = config_->GetLootGeneratorConfig();
+    std::cout << "Loot generator config: period=" << gen_config.period.count()
+        << "ms, probability=" << gen_config.probability << std::endl;
+
     auto loot_gen = std::make_shared<loot_gen::LootGenerator>(
         gen_config.period,
         gen_config.probability
@@ -63,6 +74,7 @@ void GameServer::InitializeGameState() {
     game_state_ = std::make_unique<GameState>(loot_gen, std::move(rng));
     if (!maps_.empty()) {
         game_state_->SetCurrentMap(maps_.begin()->second.get());
+        std::cout << "Current map set to: " << maps_.begin()->first << std::endl;
     }
 }
 
@@ -119,18 +131,8 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     }
     obj["offices"] = offices;
 
-    boost::json::array loot_types;
-    for (const auto& lt : info.loot_types) {
-        boost::json::object loot_obj;
-        loot_obj["name"] = lt.name;
-        loot_obj["file"] = lt.file;
-        loot_obj["type"] = lt.type;
-        if (!lt.color.empty()) loot_obj["color"] = lt.color;
-        if (lt.rotation != 0) loot_obj["rotation"] = lt.rotation;
-        if (lt.scale != 1.0) loot_obj["scale"] = lt.scale;
-        loot_types.push_back(loot_obj);
-    }
-    obj["lootTypes"] = loot_types;
+    // Вставляем сохраненный массив lootTypes
+    obj["lootTypes"] = info.loot_types;
 
     return obj;
 }
@@ -155,6 +157,7 @@ boost::json::object GameServer::GetGameState() const {
     }
     response["players"] = players_obj;
 
+    // Формируем lostObjects из состояния игры
     boost::json::object loot_obj;
     for (const auto& [id, loot] : game_state_->GetLoot()) {
         boost::json::object l;
@@ -326,6 +329,7 @@ class HttpServer {
 public:
     HttpServer(std::shared_ptr<GameServer> server, unsigned short port = 8080)
         : acceptor_(ioc_, tcp::endpoint(tcp::v4(), port)), server_(std::move(server)) {
+        std::cout << "Creating HTTP server on port " << port << std::endl;
         acceptor_.listen();
         do_accept();
     }
@@ -341,6 +345,9 @@ private:
                 if (!ec) {
                     std::make_shared<HttpSession>(std::move(socket), server_)->run();
                 }
+                else {
+                    std::cerr << "Accept error: " << ec.message() << std::endl;
+                }
                 do_accept();
             });
     }
@@ -351,10 +358,12 @@ void GameServer::Run() {
     signal(SIGTERM, signal_handler);
 
     const auto tick_duration = std::chrono::milliseconds(100);
+    std::cout << "Tick duration: " << tick_duration.count() << "ms" << std::endl;
 
     // Тики в отдельном потоке
     std::thread tick_thread([this, tick_duration]() {
         try {
+            std::cout << "Tick thread started" << std::endl;
             while (!stop_server) {
                 auto start = std::chrono::steady_clock::now();
                 ProcessTick(tick_duration);
@@ -364,19 +373,22 @@ void GameServer::Run() {
                     std::this_thread::sleep_for(tick_duration - elapsed);
                 }
             }
+            std::cout << "Tick thread stopping" << std::endl;
         }
         catch (const std::exception& e) {
             std::cerr << "Tick thread exception: " << e.what() << std::endl;
         }
         });
 
-    // Создаем shared_ptr для HTTP сервера
-    auto server_ptr = std::shared_ptr<GameServer>(this, [](GameServer*) {});
+    auto server_ptr = std::shared_ptr<GameServer>(this, [](GameServer* p) {
+        // Ничего не делаем, объект управляется извне
+        });
+
     std::cout << "Starting HTTP server on port 8080..." << std::endl;
 
     try {
         HttpServer http(server_ptr, 8080);
-        std::cout << "Game server running on port 8080... (Press Ctrl+C to stop)" << std::endl;
+        std::cout << "HTTP server started, listening on port 8080" << std::endl;
         http.run(); // Главный поток обрабатывает запросы
     }
     catch (const std::exception& e) {

@@ -26,12 +26,17 @@ int main(int argc, char* argv[]) {
     }
 
     try {
+        std::cout << "Starting server with config: " << config_file << std::endl;
+
         // Проверка существования конфигурационного файла
         if (!std::filesystem::exists(config_file)) {
             throw std::runtime_error("Config file not found: " + config_file);
         }
+        std::cout << "Config file exists" << std::endl;
 
         GameServer server(config_file);
+        std::cout << "GameServer created successfully" << std::endl;
+
         server.Run();
         return 0;
     }
