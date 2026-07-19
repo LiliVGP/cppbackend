@@ -24,8 +24,25 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
         const auto& road = roads[road_dist(*rng_)];
 
-        // Генерируем случайную точку на дороге
-        Point position = road.random_point(*rng_);
+        Point position;
+        
+        // Генерируем точку на дороге с учётом её ориентации
+        std::uniform_real_distribution<double> dist(0.0, 1.0);
+        double t = dist(*rng_);
+        
+        if (road.x0 == road.x1) {
+            // Вертикальная дорога
+            position.x = road.x0;
+            position.y = road.y0 + (road.y1 - road.y0) * t;
+        } else if (road.y0 == road.y1) {
+            // Горизонтальная дорога
+            position.x = road.x0 + (road.x1 - road.x0) * t;
+            position.y = road.y0;
+        } else {
+            // Диагональная дорога (если такие есть)
+            position.x = road.x0 + (road.x1 - road.x0) * t;
+            position.y = road.y0 + (road.y1 - road.y0) * t;
+        }
 
         // Добавляем трофей
         AddLoot(next_loot_id_++, type, position);
