@@ -1,3 +1,4 @@
+# ---- СТАДИЯ СБОРКИ ----
 FROM gcc:11 AS build
 
 RUN apt-get update && \
@@ -9,10 +10,14 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Копируем всё, что нужно для сборки
 COPY conanfile.txt .
 COPY CMakeLists.txt .
 COPY src ./src
 COPY tests ./tests
+COPY data ./data
+COPY static ./static
 
 RUN conan profile new default --detect && \
     conan install . --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
@@ -20,6 +25,7 @@ RUN conan profile new default --detect && \
 RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
     cmake --build .
 
+# ---- СТАДИЯ ЗАПУСКА ----
 FROM ubuntu:22.04 AS run
 
 RUN apt-get update && \
@@ -28,6 +34,7 @@ RUN apt-get update && \
       ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Создаём папку /app и пользователя www
 RUN mkdir -p /app && \
     useradd -m -u 1000 www && \
     chown -R www:www /app
@@ -35,6 +42,7 @@ RUN mkdir -p /app && \
 USER www
 WORKDIR /app
 
+# Копируем всё из стадии сборки
 COPY --from=build /app/build/game_server /app/game_server
 COPY --from=build /app/data /app/data
 COPY --from=build /app/static /app/static
