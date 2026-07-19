@@ -31,11 +31,11 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         double t = dist(*rng_);
         
         if (road.x0 == road.x1) {
-            // Вертикальная дорога
+            // Вертикальная дорога: x фиксирован, меняется y
             position.x = road.x0;
             position.y = road.y0 + (road.y1 - road.y0) * t;
         } else if (road.y0 == road.y1) {
-            // Горизонтальная дорога
+            // Горизонтальная дорога: y фиксирован, меняется x
             position.x = road.x0 + (road.x1 - road.x0) * t;
             position.y = road.y0;
         } else {
