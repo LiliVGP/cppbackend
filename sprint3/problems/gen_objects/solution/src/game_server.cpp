@@ -215,7 +215,6 @@ private:
     void do_process() {
         auto self = shared_from_this();
         
-        // Создаём ответ
         http::response<http::string_body> res;
         res.version(req_.version());
         res.set(http::field::cache_control, "no-cache");
@@ -270,21 +269,18 @@ private:
 
                 if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
                     try {
-                        // Парсим JSON
                         auto body = boost::json::parse(req_.body()).as_object();
                         if (!body.contains("timeDelta")) {
                             throw std::runtime_error("Missing timeDelta field");
                         }
                         int delta = body.at("timeDelta").as_int64();
                         
-                        // Обрабатываем тик
                         server_->ProcessTick(std::chrono::milliseconds(delta));
                         
-                        // Возвращаем пустой объект
+                        // Возвращаем пустой объект JSON
                         res.result(http::status::ok);
                         res.body() = "{}";
                         res.set(http::field::content_length, "2");
-                        res.set(http::field::content_type, "application/json");
                         
                         std::cout << "Tick processed: delta=" << delta << "ms" << std::endl;
                     }
@@ -348,7 +344,12 @@ private:
                 }
                 else {
                     res.result(http::status::method_not_allowed);
-                    res.set(http::field::allow, "GET, HEAD");
+                    // Только GET и HEAD разрешены для /maps/*
+                    if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
+                        res.set(http::field::allow, "GET, HEAD");
+                    } else {
+                        res.set(http::field::allow, "GET, HEAD");
+                    }
                     boost::json::object err;
                     err["code"] = "invalidMethod";
                     err["message"] = "Method not allowed";
@@ -358,7 +359,8 @@ private:
             }
             else {
                 res.result(http::status::method_not_allowed);
-                res.set(http::field::allow, "GET, HEAD, POST");
+                // Только GET и HEAD разрешены для всех эндпоинтов
+                res.set(http::field::allow, "GET, HEAD");
                 boost::json::object err;
                 err["code"] = "invalidMethod";
                 err["message"] = "Method not allowed";
@@ -385,7 +387,7 @@ private:
         std::cout << "Sending response: " << res.result_int() << " " << res.result() 
                   << " Content-Length: " << res.at(http::field::content_length) << std::endl;
         
-        // Отправляем ответ и закрываем соединение
+        // ВАЖНО: всегда отправляем ответ и закрываем соединение
         http::async_write(stream_, res,
             [self](beast::error_code ec, std::size_t bytes_transferred) {
                 if (ec) {
@@ -396,7 +398,7 @@ private:
                 // Закрываем соединение после отправки
                 beast::error_code close_ec;
                 self->stream_.socket().shutdown(tcp::socket::shutdown_send, close_ec);
-                if (close_ec) {
+                if (close_ec && close_ec != beast::errc::not_connected) {
                     std::cerr << "Close error: " << close_ec.message() << std::endl;
                 }
             });
