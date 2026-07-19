@@ -1,3 +1,4 @@
+# ---- СТАДИЯ СБОРКИ ----
 FROM gcc:11 AS build
 
 RUN apt-get update && \
@@ -23,6 +24,7 @@ RUN conan profile new default --detect && \
 RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
     cmake --build .
 
+# ---- СТАДИЯ ЗАПУСКА ----
 FROM ubuntu:22.04 AS run
 
 RUN apt-get update && \
@@ -47,5 +49,5 @@ RUN test -f /app/game_server && echo "✅ game_server exists" || (echo "❌ game
 ENV STATIC_ROOT=/app/static
 EXPOSE 8080
 
-# Запускаем сервер с флагом --host 0.0.0.0, чтобы он слушал все интерфейсы
+# ВАЖНО: Явно указываем 0.0.0.0, чтобы сервер слушал все интерфейсы
 CMD ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
