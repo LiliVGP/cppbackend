@@ -99,7 +99,6 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     obj["id"] = info.id;
     obj["name"] = info.name;
 
-    // Функция для безопасного преобразования double в JSON-число (целое или дробное)
     auto to_json_number = [](double val) -> boost::json::value {
         if (val == static_cast<int>(val)) {
             return boost::json::value(static_cast<int>(val));
@@ -215,6 +214,7 @@ private:
         res.set(http::field::cache_control, "no-cache");
         res.set(http::field::content_type, "application/json");
 
+        // ==================== GET / HEAD ====================
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
             std::string target = req_.target().to_string();
 
@@ -257,10 +257,11 @@ private:
                 res.result(http::status::not_found);
             }
         }
+        // ==================== POST ====================
         else if (req_.method() == http::verb::post) {
             std::string target = req_.target().to_string();
 
-            // ========== ОБРАБОТЧИК TICK ==========
+            // Обработка /game/tick
             if (target == "/api/v1/game/tick") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
@@ -279,8 +280,7 @@ private:
                     res.body() = boost::json::serialize(err);
                 }
             }
-            // ====================================
-
+            // Обработка /game/join
             else if (target == "/api/v1/game/join") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
@@ -322,13 +322,18 @@ private:
                     res.body() = boost::json::serialize(err);
                 }
             }
+            // ЛЮБОЙ ДРУГОЙ POST-ЗАПРОС (например, к /maps или /state) возвращает 405
             else {
-                // Если путь не найден, возвращаем 404
-                res.result(http::status::not_found);
+                res.result(http::status::method_not_allowed);
+                res.set(http::field::allow, "GET, HEAD");
+                boost::json::object err;
+                err["code"] = "invalidMethod";
+                err["message"] = "Method not allowed";
+                res.body() = boost::json::serialize(err);
             }
         }
+        // ==================== ДРУГИЕ МЕТОДЫ ====================
         else {
-            // Если метод не поддерживается, возвращаем 405
             res.result(http::status::method_not_allowed);
             res.set(http::field::allow, "GET, HEAD");
             boost::json::object err;
