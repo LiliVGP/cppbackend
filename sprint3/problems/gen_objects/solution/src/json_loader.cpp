@@ -93,13 +93,12 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Здания с явной инициализацией
             auto buildings_it = map_obj.find("buildings");
             if (buildings_it != map_obj.end()) {
                 auto& buildings_arr = buildings_it->value().as_array();
                 for (const auto& building_val : buildings_arr) {
                     auto& building_obj = building_val.as_object();
-                    Map::Building building = {}; // Инициализация нулями
+                    Map::Building building = {};
 
                     if (building_obj.contains("x") && building_obj.at("x").is_double()) {
                         building.position.x = building_obj.at("x").as_double();
@@ -118,13 +117,12 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Офисы с явной инициализацией
             auto offices_it = map_obj.find("offices");
             if (offices_it != map_obj.end()) {
                 auto& offices_arr = offices_it->value().as_array();
                 for (const auto& office_val : offices_arr) {
                     auto& office_obj = office_val.as_object();
-                    Map::Office office = {}; // Инициализация нулями
+                    Map::Office office = {};
 
                     if (office_obj.contains("x") && office_obj.at("x").is_double()) {
                         office.position.x = office_obj.at("x").as_double();
