@@ -182,184 +182,148 @@ boost::json::object GameServer::GetGameState() const {
     return response;
 }
 
-// ========= HTTP-СЕРВЕР =========
+// ========= СИНХРОННЫЙ HTTP-СЕРВЕР =========
 
-class HttpSession : public std::enable_shared_from_this<HttpSession> {
-    beast::tcp_stream stream_;
-    beast::flat_buffer buffer_;
-    http::request<http::string_body> req_;
-    std::shared_ptr<GameServer> server_;
+void HandleRequest(tcp::socket& socket, std::shared_ptr<GameServer> server) {
+    beast::flat_buffer buffer;
+    http::request<http::string_body> req;
+    
+    try {
+        // Читаем запрос (синхронно)
+        beast::error_code ec;
+        http::read(socket, buffer, req, ec);
+        if (ec) {
+            std::cerr << "Read error: " << ec.message() << std::endl;
+            return;
+        }
 
-public:
-    HttpSession(tcp::socket&& socket, std::shared_ptr<GameServer> server)
-        : stream_(std::move(socket)), server_(std::move(server)) {
-    }
-
-    void run() {
-        do_read();
-    }
-
-private:
-    void do_read() {
-        auto self = shared_from_this();
-        http::async_read(stream_, buffer_, req_,
-            [self](beast::error_code ec, std::size_t) {
-                if (!ec) {
-                    self->do_process();
-                } else {
-                    std::cerr << "Read error: " << ec.message() << std::endl;
-                }
-            });
-    }
-
-    void do_process() {
-        auto self = shared_from_this();
-        
         http::response<http::string_body> res;
-        res.version(req_.version());
+        res.version(req.version());
         res.set(http::field::cache_control, "no-cache");
         res.set(http::field::content_type, "application/json");
         res.result(http::status::ok);
 
-        try {
-            // GET и HEAD запросы
-            if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
-                std::string target = req_.target().to_string();
+        std::string target = req.target().to_string();
+        std::cout << "Request: " << req.method_string() << " " << target << std::endl;
 
-                if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
-                    auto json_obj = server_->GetGameState();
-                    if (req_.method() == http::verb::head) {
+        // GET и HEAD запросы
+        if (req.method() == http::verb::get || req.method() == http::verb::head) {
+            if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
+                auto json_obj = server->GetGameState();
+                if (req.method() == http::verb::head) {
+                    res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
+                } else {
+                    res.body() = boost::json::serialize(json_obj);
+                    res.set(http::field::content_length, std::to_string(res.body().size()));
+                }
+            }
+            else if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
+                std::string map_id = target.substr(target.rfind('/') + 1);
+                auto json_obj = server->GetMapInfo(map_id);
+                if (json_obj.empty()) {
+                    res.result(http::status::not_found);
+                    boost::json::object err;
+                    err["code"] = "mapNotFound";
+                    err["message"] = "Map not found";
+                    if (req.method() == http::verb::head) {
+                        res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
+                    } else {
+                        res.body() = boost::json::serialize(err);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
+                    }
+                } else {
+                    if (req.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
                     } else {
                         res.body() = boost::json::serialize(json_obj);
                         res.set(http::field::content_length, std::to_string(res.body().size()));
                     }
                 }
-                else if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
-                    std::string map_id = target.substr(target.rfind('/') + 1);
-                    auto json_obj = server_->GetMapInfo(map_id);
-                    if (json_obj.empty()) {
-                        res.result(http::status::not_found);
+            }
+            else {
+                res.result(http::status::not_found);
+                res.set(http::field::content_length, "0");
+            }
+        }
+        // POST запросы
+        else if (req.method() == http::verb::post) {
+            if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
+                try {
+                    auto body = boost::json::parse(req.body()).as_object();
+                    if (!body.contains("timeDelta")) {
+                        throw std::runtime_error("Missing timeDelta field");
+                    }
+                    int delta = body.at("timeDelta").as_int64();
+                    
+                    server->ProcessTick(std::chrono::milliseconds(delta));
+                    
+                    // Возвращаем пустой объект JSON
+                    res.result(http::status::ok);
+                    res.body() = "{}";
+                    res.set(http::field::content_length, "2");
+                    
+                    std::cout << "Tick processed: delta=" << delta << "ms" << std::endl;
+                }
+                catch (const std::exception& e) {
+                    std::cerr << "Tick error: " << e.what() << std::endl;
+                    res.result(http::status::bad_request);
+                    boost::json::object err;
+                    err["code"] = "invalidArgument";
+                    err["message"] = e.what();
+                    res.body() = boost::json::serialize(err);
+                    res.set(http::field::content_length, std::to_string(res.body().size()));
+                }
+            }
+            else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
+                try {
+                    auto body = boost::json::parse(req.body()).as_object();
+                    if (!body.contains("userName") || !body.contains("mapId")) {
+                        throw std::runtime_error("Missing required fields: userName or mapId");
+                    }
+                    std::string user_name = body.at("userName").as_string().c_str();
+                    std::string map_id = body.at("mapId").as_string().c_str();
+
+                    const Map* map = server->GetMap(map_id);
+                    if (!map) {
+                        res.result(http::status::bad_request);
                         boost::json::object err;
                         err["code"] = "mapNotFound";
                         err["message"] = "Map not found";
-                        if (req_.method() == http::verb::head) {
-                            res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-                        } else {
-                            res.body() = boost::json::serialize(err);
-                            res.set(http::field::content_length, std::to_string(res.body().size()));
-                        }
-                    } else {
-                        if (req_.method() == http::verb::head) {
-                            res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                        } else {
-                            res.body() = boost::json::serialize(json_obj);
-                            res.set(http::field::content_length, std::to_string(res.body().size()));
-                        }
+                        res.body() = boost::json::serialize(err);
+                        res.set(http::field::content_length, std::to_string(res.body().size()));
                     }
-                }
-                else {
-                    res.result(http::status::not_found);
-                    res.set(http::field::content_length, "0");
-                }
-            }
-            // POST запросы
-            else if (req_.method() == http::verb::post) {
-                std::string target = req_.target().to_string();
+                    else {
+                        static PlayerId::IdType next_player_id = 0;
+                        static std::mt19937 rng(std::random_device{}());
+                        PlayerId player_id{ next_player_id++ };
+                        std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
 
-                if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
-                    try {
-                        auto body = boost::json::parse(req_.body()).as_object();
-                        if (!body.contains("timeDelta")) {
-                            throw std::runtime_error("Missing timeDelta field");
-                        }
-                        int delta = body.at("timeDelta").as_int64();
-                        
-                        server_->ProcessTick(std::chrono::milliseconds(delta));
-                        
-                        // Возвращаем пустой объект JSON
+                        GameState::Player player;
+                        player.position = { 0.0, 0.0 };
+                        player.speed = { 0.0, 0.0 };
+                        player.direction = GameState::Direction::U;
+                        server->AddPlayer(player_id, player);
+
+                        boost::json::object resp;
+                        resp["authToken"] = auth_token;
+                        resp["playerId"] = static_cast<int>(player_id.GetId());
                         res.result(http::status::ok);
-                        res.body() = "{}";
-                        res.set(http::field::content_length, "2");
-                        
-                        std::cout << "Tick processed: delta=" << delta << "ms" << std::endl;
-                    }
-                    catch (const std::exception& e) {
-                        std::cerr << "Tick error: " << e.what() << std::endl;
-                        res.result(http::status::bad_request);
-                        boost::json::object err;
-                        err["code"] = "invalidArgument";
-                        err["message"] = e.what();
-                        res.body() = boost::json::serialize(err);
+                        res.body() = boost::json::serialize(resp);
                         res.set(http::field::content_length, std::to_string(res.body().size()));
                     }
                 }
-                else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
-                    try {
-                        auto body = boost::json::parse(req_.body()).as_object();
-                        if (!body.contains("userName") || !body.contains("mapId")) {
-                            throw std::runtime_error("Missing required fields: userName or mapId");
-                        }
-                        std::string user_name = body.at("userName").as_string().c_str();
-                        std::string map_id = body.at("mapId").as_string().c_str();
-
-                        const Map* map = server_->GetMap(map_id);
-                        if (!map) {
-                            res.result(http::status::bad_request);
-                            boost::json::object err;
-                            err["code"] = "mapNotFound";
-                            err["message"] = "Map not found";
-                            res.body() = boost::json::serialize(err);
-                            res.set(http::field::content_length, std::to_string(res.body().size()));
-                        }
-                        else {
-                            static PlayerId::IdType next_player_id = 0;
-                            static std::mt19937 rng(std::random_device{}());
-                            PlayerId player_id{ next_player_id++ };
-                            std::string auth_token = std::to_string(std::uniform_int_distribution<unsigned long long>(0, ULLONG_MAX)(rng));
-
-                            GameState::Player player;
-                            player.position = { 0.0, 0.0 };
-                            player.speed = { 0.0, 0.0 };
-                            player.direction = GameState::Direction::U;
-                            server_->AddPlayer(player_id, player);
-
-                            boost::json::object resp;
-                            resp["authToken"] = auth_token;
-                            resp["playerId"] = static_cast<int>(player_id.GetId());
-                            res.result(http::status::ok);
-                            res.body() = boost::json::serialize(resp);
-                            res.set(http::field::content_length, std::to_string(res.body().size()));
-                        }
-                    }
-                    catch (const std::exception& e) {
-                        std::cerr << "Join error: " << e.what() << std::endl;
-                        res.result(http::status::bad_request);
-                        boost::json::object err;
-                        err["code"] = "invalidArgument";
-                        err["message"] = e.what();
-                        res.body() = boost::json::serialize(err);
-                        res.set(http::field::content_length, std::to_string(res.body().size()));
-                    }
-                }
-                else {
-                    res.result(http::status::method_not_allowed);
-                    // Только GET и HEAD разрешены для /maps/*
-                    if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
-                        res.set(http::field::allow, "GET, HEAD");
-                    } else {
-                        res.set(http::field::allow, "GET, HEAD");
-                    }
+                catch (const std::exception& e) {
+                    std::cerr << "Join error: " << e.what() << std::endl;
+                    res.result(http::status::bad_request);
                     boost::json::object err;
-                    err["code"] = "invalidMethod";
-                    err["message"] = "Method not allowed";
+                    err["code"] = "invalidArgument";
+                    err["message"] = e.what();
                     res.body() = boost::json::serialize(err);
                     res.set(http::field::content_length, std::to_string(res.body().size()));
                 }
             }
             else {
                 res.result(http::status::method_not_allowed);
-                // Только GET и HEAD разрешены для всех эндпоинтов
                 res.set(http::field::allow, "GET, HEAD");
                 boost::json::object err;
                 err["code"] = "invalidMethod";
@@ -368,10 +332,13 @@ private:
                 res.set(http::field::content_length, std::to_string(res.body().size()));
             }
         }
-        catch (const std::exception& e) {
-            std::cerr << "Process error: " << e.what() << std::endl;
-            res.result(http::status::internal_server_error);
-            res.body() = "Internal server error";
+        else {
+            res.result(http::status::method_not_allowed);
+            res.set(http::field::allow, "GET, HEAD");
+            boost::json::object err;
+            err["code"] = "invalidMethod";
+            err["message"] = "Method not allowed";
+            res.body() = boost::json::serialize(err);
             res.set(http::field::content_length, std::to_string(res.body().size()));
         }
 
@@ -386,56 +353,25 @@ private:
 
         std::cout << "Sending response: " << res.result_int() << " " << res.result() 
                   << " Content-Length: " << res.at(http::field::content_length) << std::endl;
-        
-        // ВАЖНО: всегда отправляем ответ и закрываем соединение
-        http::async_write(stream_, res,
-            [self](beast::error_code ec, std::size_t bytes_transferred) {
-                if (ec) {
-                    std::cerr << "Write error: " << ec.message() << std::endl;
-                } else {
-                    std::cout << "Response sent: " << bytes_transferred << " bytes" << std::endl;
-                }
-                // Закрываем соединение после отправки
-                beast::error_code close_ec;
-                self->stream_.socket().shutdown(tcp::socket::shutdown_send, close_ec);
-                if (close_ec && close_ec != beast::errc::not_connected) {
-                    std::cerr << "Close error: " << close_ec.message() << std::endl;
-                }
-            });
-    }
-};
 
-class HttpServer {
-    net::io_context ioc_;
-    tcp::acceptor acceptor_;
-    std::shared_ptr<GameServer> server_;
+        // Отправляем ответ (синхронно)
+        http::write(socket, res, ec);
+        if (ec) {
+            std::cerr << "Write error: " << ec.message() << std::endl;
+        } else {
+            std::cout << "Response sent successfully" << std::endl;
+        }
 
-public:
-    HttpServer(std::shared_ptr<GameServer> server, unsigned short port = 8080)
-        : acceptor_(ioc_, tcp::endpoint(tcp::v4(), port)), server_(std::move(server)) {
-        std::cout << "Creating HTTP server on port " << port << std::endl;
-        acceptor_.listen();
-        do_accept();
+        // Закрываем соединение
+        socket.shutdown(tcp::socket::shutdown_send, ec);
+        if (ec && ec != beast::errc::not_connected) {
+            std::cerr << "Shutdown error: " << ec.message() << std::endl;
+        }
     }
-
-    void run() {
-        ioc_.run();
+    catch (const std::exception& e) {
+        std::cerr << "HandleRequest exception: " << e.what() << std::endl;
     }
-
-private:
-    void do_accept() {
-        acceptor_.async_accept(
-            [this](beast::error_code ec, tcp::socket socket) {
-                if (!ec) {
-                    std::cout << "New connection accepted" << std::endl;
-                    std::make_shared<HttpSession>(std::move(socket), server_)->run();
-                } else {
-                    std::cerr << "Accept error: " << ec.message() << std::endl;
-                }
-                do_accept();
-            });
-    }
-};
+}
 
 void GameServer::Run() {
     signal(SIGINT, signal_handler);
@@ -468,9 +404,20 @@ void GameServer::Run() {
     std::cout << "Starting HTTP server on port 8080..." << std::endl;
 
     try {
-        HttpServer http(server_ptr, 8080);
+        net::io_context ioc;
+        tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 8080));
         std::cout << "HTTP server started on port 8080" << std::endl;
-        http.run();
+
+        while (!stop_server) {
+            tcp::socket socket(ioc);
+            acceptor.accept(socket);
+            std::cout << "New connection accepted" << std::endl;
+            
+            // Обрабатываем запрос синхронно в отдельном потоке
+            std::thread([socket = std::move(socket), server_ptr]() mutable {
+                HandleRequest(socket, server_ptr);
+            }).detach();
+        }
     }
     catch (const std::exception& e) {
         std::cerr << "HTTP server exception: " << e.what() << std::endl;
