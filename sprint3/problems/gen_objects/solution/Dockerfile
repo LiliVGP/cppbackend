@@ -32,14 +32,9 @@ RUN apt update && \
 
 COPY --from=build /app/build/game_server /app/
 
-# Копируем статику и данные
 COPY ./data /app/data
 COPY ./static /app/static
 
-RUN chown -R www:www /home/runner/work/cppbackend/
-
-# Переключаемся на пользователя www
-USER www
 WORKDIR /app
 
 ENV STATIC_ROOT=/app/static
