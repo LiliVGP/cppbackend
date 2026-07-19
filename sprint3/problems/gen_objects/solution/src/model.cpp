@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 
+// Вспомогательная функция для проверки, лежит ли точка на отрезке
 static bool IsPointOnSegment(double x, double y, double x0, double y0, double x1, double y1) {
     const double eps = 1e-6;
     
@@ -42,6 +43,7 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
     }
 
     for (unsigned i = 0; i < generated; ++i) {
+        // Выбираем случайный тип трофея
         std::uniform_int_distribution<size_t> type_dist(0, current_map_->GetLootTypesCount() - 1);
         LootTypeId type{ static_cast<LootTypeId::IdType>(type_dist(*rng_)) };
 
@@ -50,25 +52,33 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         int attempts = 0;
         const int max_attempts = 100;
 
+        // Пытаемся сгенерировать точку на дороге
         while (!valid_position && attempts < max_attempts) {
             attempts++;
             
+            // Выбираем случайную дорогу
             std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
             const auto& road = roads[road_dist(*rng_)];
-
+            
+            // Генерируем точку на дороге с учётом её ориентации
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             double t = dist(*rng_);
-
-            if (road.x0 == road.x1) {
+            
+            // Определяем тип дороги с явным сравнением
+            const double eps = 1e-9;
+            bool is_vertical = std::abs(road.x0 - road.x1) < eps;
+            bool is_horizontal = std::abs(road.y0 - road.y1) < eps;
+            
+            if (is_vertical) {
                 // Вертикальная дорога: x фиксирован
                 position.x = road.x0;
                 position.y = road.y0 + (road.y1 - road.y0) * t;
-            } else if (road.y0 == road.y1) {
+            } else if (is_horizontal) {
                 // Горизонтальная дорога: y фиксирован
                 position.x = road.x0 + (road.x1 - road.x0) * t;
                 position.y = road.y0;
             } else {
-                // Диагональная дорога
+                // Диагональная дорога (не должна возникать)
                 position.x = road.x0 + (road.x1 - road.x0) * t;
                 position.y = road.y0 + (road.y1 - road.y0) * t;
             }
