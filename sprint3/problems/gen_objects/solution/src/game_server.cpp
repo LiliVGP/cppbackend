@@ -45,7 +45,6 @@ void GameServer::InitializeMaps() {
     }
 
     for (const auto& map_info : map_infos) {
-        // 1. Создаём модель карты
         auto map = std::make_unique<Map>(
             map_info.id,
             map_info.name,
@@ -55,10 +54,7 @@ void GameServer::InitializeMaps() {
         for (const auto& building : map_info.buildings) map->AddBuilding(building);
         for (const auto& office : map_info.offices) map->AddOffice(office);
 
-        // 2. Сохраняем карту
         maps_[map_info.id] = std::move(map);
-
-        // 3. Явно копируем map_info в map_infos_ (ГАРАНТИРУЕТ ЧИСТЫЕ ДАННЫЕ)
         map_infos_[map_info.id] = map_info;
     }
     std::cout << "Loaded " << maps_.size() << " maps" << std::endl;
@@ -110,7 +106,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
             return boost::json::value(static_cast<int>(val));
         }
         return boost::json::value(val);
-        };
+    };
 
     boost::json::array roads;
     for (const auto& r : info.roads) {
@@ -119,8 +115,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
         road_obj["y0"] = to_json_number(r.y0);
         if (r.x0 != r.x1) {
             road_obj["x1"] = to_json_number(r.x1);
-        }
-        else {
+        } else {
             road_obj["y1"] = to_json_number(r.y1);
         }
         roads.push_back(road_obj);
@@ -209,8 +204,9 @@ private:
         auto self = shared_from_this();
         http::async_read(stream_, buffer_, req_,
             [self](beast::error_code ec, std::size_t) {
-                if (!ec) self->do_process();
-                else {
+                if (!ec) {
+                    self->do_process();
+                } else {
                     std::cerr << "Read error: " << ec.message() << std::endl;
                 }
             });
@@ -218,22 +214,24 @@ private:
 
     void do_process() {
         auto self = shared_from_this();
+        
+        // Создаём ответ
         http::response<http::string_body> res;
         res.version(req_.version());
         res.set(http::field::cache_control, "no-cache");
         res.set(http::field::content_type, "application/json");
+        res.result(http::status::ok);
 
         try {
+            // GET и HEAD запросы
             if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
                 std::string target = req_.target().to_string();
 
                 if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
                     auto json_obj = server_->GetGameState();
-                    res.result(http::status::ok);
                     if (req_.method() == http::verb::head) {
                         res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                    }
-                    else {
+                    } else {
                         res.body() = boost::json::serialize(json_obj);
                         res.set(http::field::content_length, std::to_string(res.body().size()));
                     }
@@ -248,18 +246,14 @@ private:
                         err["message"] = "Map not found";
                         if (req_.method() == http::verb::head) {
                             res.set(http::field::content_length, std::to_string(boost::json::serialize(err).size()));
-                        }
-                        else {
+                        } else {
                             res.body() = boost::json::serialize(err);
                             res.set(http::field::content_length, std::to_string(res.body().size()));
                         }
-                    }
-                    else {
-                        res.result(http::status::ok);
+                    } else {
                         if (req_.method() == http::verb::head) {
                             res.set(http::field::content_length, std::to_string(boost::json::serialize(json_obj).size()));
-                        }
-                        else {
+                        } else {
                             res.body() = boost::json::serialize(json_obj);
                             res.set(http::field::content_length, std::to_string(res.body().size()));
                         }
@@ -270,23 +264,27 @@ private:
                     res.set(http::field::content_length, "0");
                 }
             }
+            // POST запросы
             else if (req_.method() == http::verb::post) {
                 std::string target = req_.target().to_string();
 
                 if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
                     try {
-                        // Парсим JSON-тело запроса
+                        // Парсим JSON
                         auto body = boost::json::parse(req_.body()).as_object();
+                        if (!body.contains("timeDelta")) {
+                            throw std::runtime_error("Missing timeDelta field");
+                        }
                         int delta = body.at("timeDelta").as_int64();
                         
                         // Обрабатываем тик
                         server_->ProcessTick(std::chrono::milliseconds(delta));
                         
-                        // Возвращаем пустой JSON-объект
-                        boost::json::object resp;
+                        // Возвращаем пустой объект
                         res.result(http::status::ok);
-                        res.body() = boost::json::serialize(resp);
-                        res.set(http::field::content_length, std::to_string(res.body().size()));
+                        res.body() = "{}";
+                        res.set(http::field::content_length, "2");
+                        res.set(http::field::content_type, "application/json");
                         
                         std::cout << "Tick processed: delta=" << delta << "ms" << std::endl;
                     }
@@ -303,6 +301,9 @@ private:
                 else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
                     try {
                         auto body = boost::json::parse(req_.body()).as_object();
+                        if (!body.contains("userName") || !body.contains("mapId")) {
+                            throw std::runtime_error("Missing required fields: userName or mapId");
+                        }
                         std::string user_name = body.at("userName").as_string().c_str();
                         std::string map_id = body.at("mapId").as_string().c_str();
 
@@ -336,6 +337,7 @@ private:
                         }
                     }
                     catch (const std::exception& e) {
+                        std::cerr << "Join error: " << e.what() << std::endl;
                         res.result(http::status::bad_request);
                         boost::json::object err;
                         err["code"] = "invalidArgument";
@@ -356,7 +358,7 @@ private:
             }
             else {
                 res.result(http::status::method_not_allowed);
-                res.set(http::field::allow, "GET, HEAD");
+                res.set(http::field::allow, "GET, HEAD, POST");
                 boost::json::object err;
                 err["code"] = "invalidMethod";
                 err["message"] = "Method not allowed";
@@ -380,18 +382,23 @@ private:
             }
         }
 
-        std::cout << "Sending response: " << res.result_int() << " " << res.result() << std::endl;
+        std::cout << "Sending response: " << res.result_int() << " " << res.result() 
+                  << " Content-Length: " << res.at(http::field::content_length) << std::endl;
         
+        // Отправляем ответ и закрываем соединение
         http::async_write(stream_, res,
             [self](beast::error_code ec, std::size_t bytes_transferred) {
                 if (ec) {
                     std::cerr << "Write error: " << ec.message() << std::endl;
-                }
-                else {
+                } else {
                     std::cout << "Response sent: " << bytes_transferred << " bytes" << std::endl;
                 }
                 // Закрываем соединение после отправки
-                self->stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
+                beast::error_code close_ec;
+                self->stream_.socket().shutdown(tcp::socket::shutdown_send, close_ec);
+                if (close_ec) {
+                    std::cerr << "Close error: " << close_ec.message() << std::endl;
+                }
             });
     }
 };
@@ -420,8 +427,7 @@ private:
                 if (!ec) {
                     std::cout << "New connection accepted" << std::endl;
                     std::make_shared<HttpSession>(std::move(socket), server_)->run();
-                }
-                else {
+                } else {
                     std::cerr << "Accept error: " << ec.message() << std::endl;
                 }
                 do_accept();
@@ -453,7 +459,7 @@ void GameServer::Run() {
         catch (const std::exception& e) {
             std::cerr << "Tick thread exception: " << e.what() << std::endl;
         }
-        });
+    });
 
     auto server_ptr = std::shared_ptr<GameServer>(this, [](GameServer* p) {});
 
