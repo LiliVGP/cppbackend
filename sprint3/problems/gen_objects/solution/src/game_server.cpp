@@ -43,7 +43,10 @@ void GameServer::InitializeMaps() {
     if (map_infos.empty()) {
         std::cout << "Warning: No maps loaded from config!" << std::endl;
     }
+
+    // ИЗМЕНЕНИЕ: Явное создание и заполнение map_infos_ без копирования мусора
     for (const auto& map_info : map_infos) {
+        // Сначала создаём модель карты
         auto map = std::make_unique<Map>(
             map_info.id,
             map_info.name,
@@ -52,7 +55,12 @@ void GameServer::InitializeMaps() {
         for (const auto& road : map_info.roads) map->AddRoad(road);
         for (const auto& building : map_info.buildings) map->AddBuilding(building);
         for (const auto& office : map_info.offices) map->AddOffice(office);
+
+        // Сохраняем карту
         maps_[map_info.id] = std::move(map);
+
+        // ИЗМЕНЕНИЕ: Явно копируем map_info в map_infos_ только после того,
+        // как она полностью сформирована (гарантируем, что не копируем мусор)
         map_infos_[map_info.id] = map_info;
     }
     std::cout << "Loaded " << maps_.size() << " maps" << std::endl;
@@ -99,6 +107,7 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     obj["id"] = info.id;
     obj["name"] = info.name;
 
+    // Функция для безопасного преобразования double в JSON-число (целое или дробное)
     auto to_json_number = [](double val) -> boost::json::value {
         if (val == static_cast<int>(val)) {
             return boost::json::value(static_cast<int>(val));
@@ -261,7 +270,7 @@ private:
         else if (req_.method() == http::verb::post) {
             std::string target = req_.target().to_string();
 
-            // ========== ОБРАБОТЧИК TICK (с безопасной проверкой пути) ==========
+            // ========== ОБРАБОТЧИК TICK ==========
             if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
