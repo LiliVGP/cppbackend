@@ -43,9 +43,9 @@ COPY --from=build /app/data /app/data
 COPY --from=build /app/static /app/static
 
 RUN test -f /app/game_server && echo "✅ game_server exists" || (echo "❌ game_server missing" && exit 1)
-RUN ldd /app/game_server
 
 ENV STATIC_ROOT=/app/static
 EXPOSE 8080
 
-CMD sleep 10 && /app/game_server --config-file /app/data/config.json --www-root /app/static
+# Запускаем сервер с флагом --host 0.0.0.0, чтобы он слушал все интерфейсы
+CMD ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
