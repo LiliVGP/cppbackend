@@ -67,7 +67,8 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 for (const auto& road_val : roads_arr) {
                     auto& road_obj = road_val.as_object();
 
-                    double x0 = 0.0, y0 = 0.0, x1 = 0.0, y1 = 0.0;
+                    double x0 = 0.0, y0 = 0.0;
+                    double x1 = 0.0, y1 = 0.0;
 
                     // Всегда есть x0 и y0
                     if (road_obj.contains("x0") && road_obj.at("x0").is_number()) {
@@ -77,17 +78,19 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                         y0 = road_obj.at("y0").to_number<double>();
                     }
 
-                    // Проверяем, есть ли x1 (горизонтальная дорога)
-                    if (road_obj.contains("x1") && road_obj.at("x1").is_number()) {
+                    // Определяем тип дороги по наличию x1 или y1
+                    bool has_x1 = road_obj.contains("x1") && road_obj.at("x1").is_number();
+                    bool has_y1 = road_obj.contains("y1") && road_obj.at("y1").is_number();
+
+                    if (has_x1) {
+                        // Горизонтальная дорога: есть x1, y1 = y0
                         x1 = road_obj.at("x1").to_number<double>();
-                        y1 = y0;  // горизонтальная, y не меняется
-                    }
-                    // Проверяем, есть ли y1 (вертикальная дорога)
-                    else if (road_obj.contains("y1") && road_obj.at("y1").is_number()) {
+                        y1 = y0;
+                    } else if (has_y1) {
+                        // Вертикальная дорога: есть y1, x1 = x0
                         y1 = road_obj.at("y1").to_number<double>();
-                        x1 = x0;  // вертикальная, x не меняется
-                    }
-                    else {
+                        x1 = x0;
+                    } else {
                         // Если нет ни x1, ни y1, то это точка
                         x1 = x0;
                         y1 = y0;
