@@ -1,5 +1,6 @@
 #include "model.h"
 #include <cmath>
+#include <iostream>  // для std::cerr
 
 // Вспомогательная функция для проверки, лежит ли точка на отрезке
 static bool IsPointOnSegment(double x, double y, double x0, double y0, double x1, double y1) {
