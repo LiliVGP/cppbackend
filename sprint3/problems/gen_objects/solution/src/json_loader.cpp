@@ -69,6 +69,7 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
 
                     double x0 = 0.0, y0 = 0.0, x1 = 0.0, y1 = 0.0;
 
+                    // Читаем x0 и y0 (всегда есть)
                     if (road_obj.contains("x0") && road_obj.at("x0").is_number()) {
                         x0 = road_obj.at("x0").to_number<double>();
                     }
@@ -76,16 +77,21 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                         y0 = road_obj.at("y0").to_number<double>();
                     }
 
+                    // Проверяем, есть ли x1
                     if (road_obj.contains("x1") && road_obj.at("x1").is_number()) {
                         x1 = road_obj.at("x1").to_number<double>();
-                    }
-                    else {
+                        // Если есть x1, значит это горизонтальная дорога, y1 = y0
+                        y1 = y0;
+                    } 
+                    // Проверяем, есть ли y1
+                    else if (road_obj.contains("y1") && road_obj.at("y1").is_number()) {
+                        y1 = road_obj.at("y1").to_number<double>();
+                        // Если есть y1, значит это вертикальная дорога, x1 = x0
                         x1 = x0;
                     }
-                    if (road_obj.contains("y1") && road_obj.at("y1").is_number()) {
-                        y1 = road_obj.at("y1").to_number<double>();
-                    }
                     else {
+                        // Если нет ни x1, ни y1, то это точка, но такого не должно быть
+                        x1 = x0;
                         y1 = y0;
                     }
 
