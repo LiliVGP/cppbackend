@@ -1,43 +1,42 @@
-FROM gcc:11.3 as build
+FROM gcc:11 AS build
 
-RUN apt update && \
-    apt install -y \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
       python3-pip \
       cmake \
       git && \
-    pip3 install conan==1.64.1
+    pip3 install conan==1.64.1 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY conanfile.txt /app/
-COPY CMakeLists.txt /app/
-COPY ./src /app/src
-COPY ./tests /app/tests
+WORKDIR /app
+COPY conanfile.txt .
+COPY CMakeLists.txt .
+COPY src ./src
+COPY tests ./tests
 
-RUN mkdir /app/build && cd /app/build && \
-    conan profile new default --detect && \
-    conan install .. --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
+RUN conan profile new default --detect && \
+    conan install . --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
 
-RUN cd /app/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
     cmake --build .
 
-FROM ubuntu:22.04 as run
+FROM ubuntu:22.04 AS run
 
-RUN apt update && \
-    apt install -y \
-      python3 \
-      python3-venv \
-      python3-pip \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libstdc++6 \
       ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/build/game_server /app/
-
-COPY ./data /app/data
-COPY ./static /app/static
+RUN useradd -m -u 1000 www && chown -R www:www /app
+USER www
 
 WORKDIR /app
 
+COPY --from=build /app/build/game_server /app/game_server
+COPY --from=build /app/data /app/data
+COPY --from=build /app/static /app/static
+
 ENV STATIC_ROOT=/app/static
 
-# Запускаем сервер с правильными флагами
 ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
