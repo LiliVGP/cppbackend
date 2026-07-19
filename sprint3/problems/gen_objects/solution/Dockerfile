@@ -59,4 +59,4 @@ ENV STATIC_ROOT=/app/static
 EXPOSE 8080
 
 # Запускаем сервер с явным указанием порта (если сервер поддерживает --port)
-CMD ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static", "--port", "8080"]
+CMD sleep 2 && /app/game_server --config-file /app/data/config.json --www-root /app/static --port 8080
