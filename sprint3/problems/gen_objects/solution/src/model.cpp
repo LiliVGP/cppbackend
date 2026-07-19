@@ -6,23 +6,19 @@
 static bool IsPointOnSegment(double x, double y, double x0, double y0, double x1, double y1) {
     const double eps = 1e-6;
     
-    // Проверяем, что точка лежит на линии
     double dx = x1 - x0;
     double dy = y1 - y0;
     double len2 = dx * dx + dy * dy;
     
     if (len2 < eps * eps) {
-        // Отрезок вырожден в точку
         return std::abs(x - x0) < eps && std::abs(y - y0) < eps;
     }
     
-    // Проверяем, что точка лежит на прямой
     double cross = std::abs((x - x0) * dy - (y - y0) * dx);
     if (cross / std::sqrt(len2) > eps) {
         return false;
     }
     
-    // Проверяем, что точка внутри отрезка
     double dot = (x - x0) * dx + (y - y0) * dy;
     if (dot < 0 || dot > len2) {
         return false;
@@ -54,7 +50,7 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         Point position;
         bool valid_position = false;
         int attempts = 0;
-        const int max_attempts = 1000;
+        const int max_attempts = 100;
 
         // Пытаемся сгенерировать точку на дороге
         while (!valid_position && attempts < max_attempts) {
@@ -68,7 +64,7 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             double t = dist(*rng_);
             
-            // Определяем тип дороги и генерируем точку
+            // Определяем тип дороги
             if (road.x0 == road.x1) {
                 // Вертикальная дорога: x фиксирован
                 position.x = road.x0;
