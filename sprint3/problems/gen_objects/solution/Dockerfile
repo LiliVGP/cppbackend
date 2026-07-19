@@ -11,7 +11,6 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Копируем всё, что нужно для сборки
 COPY conanfile.txt .
 COPY CMakeLists.txt .
 COPY src ./src
@@ -22,7 +21,9 @@ COPY static ./static
 RUN conan profile new default --detect && \
     conan install . --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
 
-RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
+# Собираем явно в папку build
+RUN mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
 # ---- СТАДИЯ ЗАПУСКА ----
@@ -42,7 +43,7 @@ RUN mkdir -p /app && \
 USER www
 WORKDIR /app
 
-# Копируем всё из стадии сборки
+# Копируем из папки build внутри стадии сборки
 COPY --from=build /app/build/game_server /app/game_server
 COPY --from=build /app/data /app/data
 COPY --from=build /app/static /app/static
