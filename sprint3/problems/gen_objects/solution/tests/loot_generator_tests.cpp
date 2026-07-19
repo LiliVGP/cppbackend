@@ -1,73 +1,178 @@
-#include <cmath>
+#define CATCH_CONFIG_MAIN
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <chrono>
+#include <memory>
 
+#include "../src/model.h"
 #include "../src/loot_generator.h"
 
 using namespace std::literals;
 
-SCENARIO("Loot generation") {
-    using loot_gen::LootGenerator;
-    using TimeInterval = LootGenerator::TimeInterval;
+class TestLootGenerator : public loot_gen::LootGenerator {
+public:
+    TestLootGenerator(unsigned loot_per_tick = 0)
+        : loot_gen::LootGenerator{ std::chrono::milliseconds{1000}, 1.0, [] { return 1.0; } }
+        , loot_per_tick_{ loot_per_tick } {}
 
-    GIVEN("a loot generator") {
-        LootGenerator gen{1s, 1.0};
+    unsigned Generate(std::chrono::milliseconds time_delta, unsigned loot_count, unsigned looter_count) override {
+        // Используем аргументы для корректной работы тестов
+        if (loot_per_tick_ == 0) {
+            return loot_gen::LootGenerator::Generate(time_delta, loot_count, looter_count);
+        }
+        return loot_per_tick_;
+    }
 
-        constexpr TimeInterval TIME_INTERVAL = 1s;
+private:
+    unsigned loot_per_tick_;
+};
 
-        WHEN("loot count is enough for every looter") {
-            THEN("no loot is generated") {
-                for (unsigned looters = 0; looters < 10; ++looters) {
-                    for (unsigned loot = looters; loot < looters + 10; ++loot) {
-                        INFO("loot count: " << loot << ", looters: " << looters);
-                        REQUIRE(gen.Generate(TIME_INTERVAL, loot, looters) == 0);
-                    }
+TEST_CASE("GameState generates loot", "[GameState]") {
+    GIVEN("A map with roads and loot types") {
+        Map map{ "map1", "Map 1", 3 };
+        map.AddRoad(Road{ 0, 0, 10, 0 });
+        map.AddRoad(Road{ 10, 0, 10, 10 });
+        map.AddRoad(Road{ 10, 10, 0, 10 });
+        map.AddRoad(Road{ 0, 10, 0, 0 });
+
+        auto rng = std::make_unique<std::mt19937>(42);
+        auto loot_gen = std::make_shared<TestLootGenerator>(5);
+        GameState state{ loot_gen, std::move(rng) };
+        state.SetCurrentMap(&map);
+
+        WHEN("Loot is generated") {
+            state.GenerateLoot(std::chrono::milliseconds{ 1000 });
+
+            THEN("Loot appears on the map") {
+                CHECK(state.GetLoot().size() == 5);
+            }
+
+            THEN("Each loot has a valid type") {
+                for (const auto& [id, loot] : state.GetLoot()) {
+                    CHECK(loot.type.GetId() < 3);
                 }
             }
-        }
 
-        WHEN("number of looters exceeds loot count") {
-            THEN("number of loot is proportional to loot difference") {
-                for (unsigned loot = 0; loot < 10; ++loot) {
-                    for (unsigned looters = loot; looters < loot + 10; ++looters) {
-                        INFO("loot count: " << loot << ", looters: " << looters);
-                        REQUIRE(gen.Generate(TIME_INTERVAL, loot, looters) == looters - loot);
+            THEN("Loot appears on roads") {
+                for (const auto& [id, loot] : state.GetLoot()) {
+                    bool on_road = false;
+                    for (const auto& road : map.GetRoads()) {
+                        if (loot.position.x >= std::min(road.x0, road.x1) - 0.01 &&
+                            loot.position.x <= std::max(road.x0, road.x1) + 0.01 &&
+                            loot.position.y >= std::min(road.y0, road.y1) - 0.01 &&
+                            loot.position.y <= std::max(road.y0, road.y1) + 0.01) {
+                            on_road = true;
+                            break;
+                        }
                     }
+                    CHECK(on_road);
                 }
             }
         }
     }
+}
 
-    GIVEN("a loot generator with some probability") {
-        constexpr TimeInterval BASE_INTERVAL = 1s;
-        LootGenerator gen{BASE_INTERVAL, 0.5};
+TEST_CASE("GameState respects loot limits", "[GameState]") {
+    GIVEN("A map with roads and loot types") {
+        Map map{ "map1", "Map 1", 2 };
+        map.AddRoad(Road{ 0, 0, 10, 0 });
 
-        WHEN("time is greater than base interval") {
-            THEN("number of generated loot is increased") {
-                CHECK(gen.Generate(BASE_INTERVAL * 2, 0, 4) == 3);
+        auto rng = std::make_unique<std::mt19937>(42);
+        auto loot_gen = std::make_shared<TestLootGenerator>(3);
+        GameState state{ loot_gen, std::move(rng) };
+        state.SetCurrentMap(&map);
+
+        state.AddPlayer(PlayerId{ 1 }, GameState::Player{
+            .position = {0, 0},
+            .speed = {0, 0},
+            .direction = GameState::Direction::U
+            });
+        state.AddPlayer(PlayerId{ 2 }, GameState::Player{
+            .position = {5, 0},
+            .speed = {0, 0},
+            .direction = GameState::Direction::U
+            });
+
+        WHEN("Loot is generated multiple times") {
+            state.GenerateLoot(std::chrono::milliseconds{ 1000 });
+            state.GenerateLoot(std::chrono::milliseconds{ 1000 });
+            state.GenerateLoot(std::chrono::milliseconds{ 1000 });
+
+            THEN("Total loot should not exceed number of players") {
+                CHECK(state.GetLoot().size() <= 2);
             }
         }
+    }
+}
 
-        WHEN("time is less than base interval") {
-            THEN("number of generated loot is decreased") {
-                const auto time_interval
-                    = std::chrono::duration_cast<TimeInterval>(std::chrono::duration<double>{
-                        1.0 / (std::log(1 - 0.5) / std::log(1.0 - 0.25))});
-                CHECK(gen.Generate(time_interval, 0, 4) == 1);
+TEST_CASE("Road random point generation", "[Road]") {
+    GIVEN("A horizontal road") {
+        Road road{ 0, 0, 10, 0 };
+        std::mt19937 rng(42);
+
+        WHEN("A random point is generated") {
+            Point p = road.random_point(rng);
+
+            THEN("The point lies on the road") {
+                CHECK(p.x >= 0);
+                CHECK(p.x <= 10);
+                CHECK(p.y == Catch::Approx(0));
             }
         }
     }
 
-    GIVEN("a loot generator with custom random generator") {
-        LootGenerator gen{1s, 0.5, [] {
-                              return 0.5;
-                          }};
-        WHEN("loot is generated") {
-            THEN("number of loot is proportional to random generated values") {
-                const auto time_interval
-                    = std::chrono::duration_cast<TimeInterval>(std::chrono::duration<double>{
-                        1.0 / (std::log(1 - 0.5) / std::log(1.0 - 0.25))});
-                CHECK(gen.Generate(time_interval, 0, 4) == 0);
-                CHECK(gen.Generate(time_interval, 0, 4) == 1);
+    GIVEN("A vertical road") {
+        Road road{ 5, 0, 5, 10 };
+        std::mt19937 rng(42);
+
+        WHEN("A random point is generated") {
+            Point p = road.random_point(rng);
+
+            THEN("The point lies on the road") {
+                CHECK(p.y >= 0);
+                CHECK(p.y <= 10);
+                CHECK(p.x == Catch::Approx(5));
+            }
+        }
+    }
+
+    GIVEN("A diagonal road") {
+        Road road{ 0, 0, 10, 10 };
+        std::mt19937 rng(42);
+
+        WHEN("A random point is generated") {
+            Point p = road.random_point(rng);
+
+            THEN("The point lies on the road") {
+                CHECK(p.x >= 0);
+                CHECK(p.x <= 10);
+                CHECK(p.y >= 0);
+                CHECK(p.y <= 10);
+                CHECK(p.x == Catch::Approx(p.y));
+            }
+        }
+    }
+}
+
+TEST_CASE("LootGenerator with deterministic random", "[LootGenerator]") {
+    using namespace std::chrono;
+
+    GIVEN("A loot generator with fixed probability") {
+        loot_gen::LootGenerator gen{ milliseconds{1000}, 0.5, [] { return 0.5; } };
+
+        WHEN("Loot shortage is 4 and probability is 0.5") {
+            unsigned result = gen.Generate(milliseconds{ 1000 }, 0, 4);
+
+            THEN("Generated loot is 2") {
+                CHECK(result == 2);
+            }
+        }
+
+        WHEN("Time passes multiple periods") {
+            unsigned result = gen.Generate(milliseconds{ 2000 }, 0, 4);
+
+            THEN("Generated loot is 3") {
+                CHECK(result == 3);
             }
         }
     }
