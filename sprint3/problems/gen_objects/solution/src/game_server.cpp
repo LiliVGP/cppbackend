@@ -218,7 +218,7 @@ private:
         if (req_.method() == http::verb::get || req_.method() == http::verb::head) {
             std::string target = req_.target().to_string();
 
-            if (target == "/api/v1/game/state") {
+            if (target == "/api/v1/game/state" || target == "api/v1/game/state") {
                 auto json_obj = server_->GetGameState();
                 res.result(http::status::ok);
                 if (req_.method() == http::verb::head) {
@@ -228,8 +228,8 @@ private:
                     res.body() = boost::json::serialize(json_obj);
                 }
             }
-            else if (target.rfind("/api/v1/maps/", 0) == 0) {
-                std::string map_id = target.substr(13);
+            else if (target.rfind("/api/v1/maps/", 0) == 0 || target.rfind("api/v1/maps/", 0) == 0) {
+                std::string map_id = target.substr(target.rfind('/') + 1);
                 auto json_obj = server_->GetMapInfo(map_id);
                 if (json_obj.empty()) {
                     res.result(http::status::not_found);
@@ -261,8 +261,8 @@ private:
         else if (req_.method() == http::verb::post) {
             std::string target = req_.target().to_string();
 
-            // Обработка /game/tick
-            if (target == "/api/v1/game/tick") {
+            // ========== ОБРАБОТЧИК TICK (с безопасной проверкой пути) ==========
+            if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
                     int delta = body.at("timeDelta").as_int64();
@@ -280,8 +280,9 @@ private:
                     res.body() = boost::json::serialize(err);
                 }
             }
-            // Обработка /game/join
-            else if (target == "/api/v1/game/join") {
+            // ====================================
+
+            else if (target == "/api/v1/game/join" || target == "api/v1/game/join") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
                     std::string user_name = body.at("userName").as_string().c_str();
