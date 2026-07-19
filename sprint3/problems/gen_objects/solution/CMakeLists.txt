@@ -9,6 +9,7 @@ conan_basic_setup(TARGETS)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+# Основной сервер
 add_executable(game_server
     src/main.cpp
     src/model.h
@@ -22,9 +23,16 @@ add_executable(game_server
     src/game_server.h
     src/game_server.cpp
 )
-target_include_directories(game_server PRIVATE $<TARGET_PROPERTY:CONAN_PKG::boost,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(game_server PRIVATE CONAN_PKG::boost Threads::Threads)
 
+target_include_directories(game_server PRIVATE 
+    $<TARGET_PROPERTY:CONAN_PKG::boost,INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(game_server PRIVATE 
+    CONAN_PKG::boost 
+    Threads::Threads
+)
+
+# Тесты
 add_executable(game_server_tests
     src/model.h
     src/model.cpp
@@ -35,6 +43,12 @@ add_executable(game_server_tests
     tests/loot_generator_tests.cpp
 )
 
-target_include_directories(game_server_tests PRIVATE $<TARGET_PROPERTY:CONAN_PKG::boost,INTERFACE_INCLUDE_DIRECTORIES>
- $<TARGET_PROPERTY:CONAN_PKG::catch2,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(game_server_tests PRIVATE CONAN_PKG::catch2 CONAN_PKG::boost Threads::Threads)
+target_include_directories(game_server_tests PRIVATE 
+    $<TARGET_PROPERTY:CONAN_PKG::boost,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:CONAN_PKG::catch2,INTERFACE_INCLUDE_DIRECTORIES>
+)
+target_link_libraries(game_server_tests PRIVATE 
+    CONAN_PKG::catch2 
+    CONAN_PKG::boost 
+    Threads::Threads
+)
