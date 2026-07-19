@@ -210,6 +210,9 @@ private:
         http::async_read(stream_, buffer_, req_,
             [self](beast::error_code ec, std::size_t) {
                 if (!ec) self->do_process();
+                else {
+                    std::cerr << "Read error: " << ec.message() << std::endl;
+                }
             });
     }
 
@@ -272,16 +275,23 @@ private:
 
                 if (target == "/api/v1/game/tick" || target == "api/v1/game/tick") {
                     try {
+                        // Парсим JSON-тело запроса
                         auto body = boost::json::parse(req_.body()).as_object();
                         int delta = body.at("timeDelta").as_int64();
+                        
+                        // Обрабатываем тик
                         server_->ProcessTick(std::chrono::milliseconds(delta));
-
+                        
+                        // Возвращаем пустой JSON-объект
                         boost::json::object resp;
                         res.result(http::status::ok);
                         res.body() = boost::json::serialize(resp);
                         res.set(http::field::content_length, std::to_string(res.body().size()));
+                        
+                        std::cout << "Tick processed: delta=" << delta << "ms" << std::endl;
                     }
                     catch (const std::exception& e) {
+                        std::cerr << "Tick error: " << e.what() << std::endl;
                         res.result(http::status::bad_request);
                         boost::json::object err;
                         err["code"] = "invalidArgument";
@@ -355,18 +365,32 @@ private:
             }
         }
         catch (const std::exception& e) {
+            std::cerr << "Process error: " << e.what() << std::endl;
             res.result(http::status::internal_server_error);
             res.body() = "Internal server error";
             res.set(http::field::content_length, std::to_string(res.body().size()));
         }
 
-        // Если тело пустое и Content-Length не установлен, ставим 0
-        if (res.body().empty() && res.find(http::field::content_length) == res.end()) {
-            res.set(http::field::content_length, "0");
+        // Убеждаемся, что Content-Length всегда установлен
+        if (res.find(http::field::content_length) == res.end()) {
+            if (res.body().empty()) {
+                res.set(http::field::content_length, "0");
+            } else {
+                res.set(http::field::content_length, std::to_string(res.body().size()));
+            }
         }
 
+        std::cout << "Sending response: " << res.result_int() << " " << res.result() << std::endl;
+        
         http::async_write(stream_, res,
-            [self](beast::error_code ec, std::size_t) {
+            [self](beast::error_code ec, std::size_t bytes_transferred) {
+                if (ec) {
+                    std::cerr << "Write error: " << ec.message() << std::endl;
+                }
+                else {
+                    std::cout << "Response sent: " << bytes_transferred << " bytes" << std::endl;
+                }
+                // Закрываем соединение после отправки
                 self->stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
             });
     }
@@ -394,6 +418,7 @@ private:
         acceptor_.async_accept(
             [this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
+                    std::cout << "New connection accepted" << std::endl;
                     std::make_shared<HttpSession>(std::move(socket), server_)->run();
                 }
                 else {
