@@ -1,6 +1,6 @@
 #include "model.h"
 #include <cmath>
-#include <iostream>  // для std::cerr
+#include <iostream>
 
 // Вспомогательная функция для проверки, лежит ли точка на отрезке
 static bool IsPointOnSegment(double x, double y, double x0, double y0, double x1, double y1) {
@@ -54,7 +54,7 @@ void GameState::GenerateLoot(std::chrono::milliseconds delta) {
         Point position;
         bool valid_position = false;
         int attempts = 0;
-        const int max_attempts = 100;
+        const int max_attempts = 1000;
 
         // Пытаемся сгенерировать точку на дороге
         while (!valid_position && attempts < max_attempts) {
