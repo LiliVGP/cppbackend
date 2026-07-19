@@ -20,6 +20,9 @@ public:
     const Map* GetMap(const std::string& id) const;
     void AddPlayer(PlayerId id, const GameState::Player& player);
 
+    // Добавляем метод для обработки тиков
+    void ProcessTick(std::chrono::milliseconds delta);
+
 private:
     std::unique_ptr<ConfigLoader> config_;
     std::unordered_map<std::string, std::unique_ptr<Map>> maps_;
@@ -29,5 +32,4 @@ private:
 
     void InitializeMaps();
     void InitializeGameState();
-    void ProcessTick(std::chrono::milliseconds delta);
 };

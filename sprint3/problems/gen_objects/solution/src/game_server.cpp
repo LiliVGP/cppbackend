@@ -88,6 +88,11 @@ void GameServer::AddPlayer(PlayerId id, const GameState::Player& player) {
     game_state_->AddPlayer(id, player);
 }
 
+void GameServer::ProcessTick(std::chrono::milliseconds delta) {
+    time_ += delta;
+    game_state_->GenerateLoot(delta);
+}
+
 boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     auto it = map_infos_.find(id);
     if (it == map_infos_.end()) return {};
@@ -97,13 +102,25 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     obj["id"] = info.id;
     obj["name"] = info.name;
 
+    // Функция для безопасного преобразования double в JSON-число (целое или дробное)
+    auto to_json_number = [](double val) -> boost::json::value {
+        if (val == static_cast<int>(val)) {
+            return boost::json::value(static_cast<int>(val));
+        }
+        return boost::json::value(val);
+        };
+
     boost::json::array roads;
     for (const auto& r : info.roads) {
         boost::json::object road_obj;
-        road_obj["x0"] = r.x0;
-        road_obj["y0"] = r.y0;
-        if (r.x0 != r.x1) road_obj["x1"] = r.x1;
-        else road_obj["y1"] = r.y1;
+        road_obj["x0"] = to_json_number(r.x0);
+        road_obj["y0"] = to_json_number(r.y0);
+        if (r.x0 != r.x1) {
+            road_obj["x1"] = to_json_number(r.x1);
+        }
+        else {
+            road_obj["y1"] = to_json_number(r.y1);
+        }
         roads.push_back(road_obj);
     }
     obj["roads"] = roads;
@@ -111,10 +128,10 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     boost::json::array buildings;
     for (const auto& b : info.buildings) {
         boost::json::object building_obj;
-        building_obj["x"] = b.position.x;
-        building_obj["y"] = b.position.y;
-        building_obj["w"] = b.width;
-        building_obj["h"] = b.height;
+        building_obj["x"] = to_json_number(b.position.x);
+        building_obj["y"] = to_json_number(b.position.y);
+        building_obj["w"] = to_json_number(b.width);
+        building_obj["h"] = to_json_number(b.height);
         buildings.push_back(building_obj);
     }
     obj["buildings"] = buildings;
@@ -123,10 +140,10 @@ boost::json::object GameServer::GetMapInfo(const std::string& id) const {
     for (const auto& o : info.offices) {
         boost::json::object office_obj;
         office_obj["id"] = "o0";
-        office_obj["x"] = o.position.x;
-        office_obj["y"] = o.position.y;
-        office_obj["offsetX"] = o.offset_x;
-        office_obj["offsetY"] = o.offset_y;
+        office_obj["x"] = to_json_number(o.position.x);
+        office_obj["y"] = to_json_number(o.position.y);
+        office_obj["offsetX"] = to_json_number(o.offset_x);
+        office_obj["offsetY"] = to_json_number(o.offset_y);
         offices.push_back(office_obj);
     }
     obj["offices"] = offices;
@@ -170,12 +187,8 @@ boost::json::object GameServer::GetGameState() const {
     return response;
 }
 
-void GameServer::ProcessTick(std::chrono::milliseconds delta) {
-    time_ += delta;
-    game_state_->GenerateLoot(delta);
-}
+// ========= HTTP-СЕРВЕР =========
 
-// HTTP-сервер
 class HttpSession : public std::enable_shared_from_this<HttpSession> {
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
@@ -251,7 +264,29 @@ private:
         }
         else if (req_.method() == http::verb::post) {
             std::string target = req_.target().to_string();
-            if (target == "/api/v1/game/join") {
+
+            // ========== ОБРАБОТЧИК TICK ==========
+            if (target == "/api/v1/game/tick") {
+                try {
+                    auto body = boost::json::parse(req_.body()).as_object();
+                    int delta = body.at("timeDelta").as_int64();
+                    server_->ProcessTick(std::chrono::milliseconds(delta));
+
+                    boost::json::object resp;
+                    res.result(http::status::ok);
+                    res.body() = boost::json::serialize(resp);
+                }
+                catch (const std::exception& e) {
+                    res.result(http::status::bad_request);
+                    boost::json::object err;
+                    err["code"] = "invalidArgument";
+                    err["message"] = e.what();
+                    res.body() = boost::json::serialize(err);
+                }
+            }
+            // ====================================
+
+            else if (target == "/api/v1/game/join") {
                 try {
                     auto body = boost::json::parse(req_.body()).as_object();
                     std::string user_name = body.at("userName").as_string().c_str();
@@ -388,7 +423,7 @@ void GameServer::Run() {
 
     try {
         HttpServer http(server_ptr, 8080);
-        std::cout << "HTTP server started, listening on port 8080" << std::endl;
+        std::cout << "HTTP server started on port 8080" << std::endl;
         http.run(); // Главный поток обрабатывает запросы
     }
     catch (const std::exception& e) {
