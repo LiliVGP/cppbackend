@@ -61,7 +61,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
             map_info.id = std::string(map_obj.at("id").as_string());
             map_info.name = std::string(map_obj.at("name").as_string());
 
-            // Дороги (САМАЯ НАДЁЖНАЯ ЗАЩИТА)
             auto roads_it = map_obj.find("roads");
             if (roads_it != map_obj.end()) {
                 auto& roads_arr = roads_it->value().as_array();
@@ -94,13 +93,13 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Здания
+            // Здания с явной инициализацией
             auto buildings_it = map_obj.find("buildings");
             if (buildings_it != map_obj.end()) {
                 auto& buildings_arr = buildings_it->value().as_array();
                 for (const auto& building_val : buildings_arr) {
                     auto& building_obj = building_val.as_object();
-                    Map::Building building;
+                    Map::Building building = {}; // Инициализация нулями
 
                     if (building_obj.contains("x") && building_obj.at("x").is_double()) {
                         building.position.x = building_obj.at("x").as_double();
@@ -119,13 +118,13 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // Офисы
+            // Офисы с явной инициализацией
             auto offices_it = map_obj.find("offices");
             if (offices_it != map_obj.end()) {
                 auto& offices_arr = offices_it->value().as_array();
                 for (const auto& office_val : offices_arr) {
                     auto& office_obj = office_val.as_object();
-                    Map::Office office;
+                    Map::Office office = {}; // Инициализация нулями
 
                     if (office_obj.contains("x") && office_obj.at("x").is_double()) {
                         office.position.x = office_obj.at("x").as_double();
@@ -144,7 +143,6 @@ ConfigLoader ConfigLoader::LoadFromFile(const std::string& path) {
                 }
             }
 
-            // LootTypes
             auto loot_types_it = map_obj.find("lootTypes");
             if (loot_types_it != map_obj.end()) {
                 map_info.loot_types = loot_types_it->value().as_array();
