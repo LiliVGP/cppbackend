@@ -48,4 +48,4 @@ RUN ldd /app/game_server
 ENV STATIC_ROOT=/app/static
 EXPOSE 8080
 
-CMD sleep 5 && /app/game_server --config-file /app/data/config.json --www-root /app/static
+CMD sleep 7 && /app/game_server --config-file /app/data/config.json --www-root /app/static
