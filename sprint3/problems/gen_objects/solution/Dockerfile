@@ -28,9 +28,11 @@ RUN apt-get update && \
       ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -u 1000 www && chown -R www:www /app
-USER www
+RUN mkdir -p /app && \
+    useradd -m -u 1000 www && \
+    chown -R www:www /app
 
+USER www
 WORKDIR /app
 
 COPY --from=build /app/build/game_server /app/game_server
