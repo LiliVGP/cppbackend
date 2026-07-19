@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <filesystem>
 #include "game_server.h"
 
 int main(int argc, char* argv[]) {
@@ -25,19 +26,17 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        // Проверка существования конфигурационного файла (без std::filesystem)
-        std::ifstream test_file(config_file);
-        if (!test_file.is_open()) {
+        // Проверка существования конфигурационного файла
+        if (!std::filesystem::exists(config_file)) {
             throw std::runtime_error("Config file not found: " + config_file);
         }
-        test_file.close();
 
         GameServer server(config_file);
         server.Run();
         return 0;
     }
     catch (const std::exception& e) {
-        std::cout << "FATAL ERROR: " << e.what() << std::flush;
+        std::cerr << "FATAL ERROR: " << e.what() << std::endl;
         return 1;
     }
 }
