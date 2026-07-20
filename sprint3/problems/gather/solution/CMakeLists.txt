@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(collision_detection CXX)
+project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
@@ -10,25 +10,14 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_library(collision_detection_lib STATIC
-    src/collision_detector.h
-    src/collision_detector.cpp
+	src/collision_detector.h
+	src/collision_detector.cpp
 )
 
-target_include_directories(collision_detection_lib PUBLIC src)
 target_link_libraries(collision_detection_lib PUBLIC CONAN_PKG::boost Threads::Threads)
 
 add_executable(collision_detection_tests
-    tests/collision-detector-tests.cpp
+	tests/collision-detector-tests.cpp
 )
 
-# --- ВАЖНО: ЯВНО ДОБАВЛЯЕМ ПУТИ К ЗАГОЛОВКАМ CATCH2 ДЛЯ ВСЕХ КОНФИГУРАЦИЙ ---
-target_include_directories(collision_detection_tests PRIVATE 
-    ${CONAN_INCLUDE_DIRS_CATCH2_RELEASE}
-    ${CONAN_INCLUDE_DIRS_CATCH2_DEBUG}
-)
-
-# --- ПРАВИЛЬНАЯ ЛИНКОВКА: ТОЛЬКО CONAN_PKG::catch2, БЕЗ ПСЕВДО-ТАРГЕТОВ ---
-target_link_libraries(collision_detection_tests 
-    CONAN_PKG::catch2
-    collision_detection_lib
-)
+target_link_libraries(collision_detection_tests CONAN_PKG::catch2 collision_detection_lib)
