@@ -21,11 +21,14 @@ add_executable(collision_detection_tests
     tests/collision-detector-tests.cpp
 )
 
-target_include_directories(collision_detection_tests PRIVATE ${CONAN_INCLUDE_DIRS_CATCH2_RELEASE})
+# --- ВАЖНО: ЯВНО ДОБАВЛЯЕМ ПУТИ К ЗАГОЛОВКАМ CATCH2 ДЛЯ ВСЕХ КОНФИГУРАЦИЙ ---
+target_include_directories(collision_detection_tests PRIVATE 
+    ${CONAN_INCLUDE_DIRS_CATCH2_RELEASE}
+    ${CONAN_INCLUDE_DIRS_CATCH2_DEBUG}
+)
 
-# КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: линкуем основную библиотеку Catch2
+# --- ПРАВИЛЬНАЯ ЛИНКОВКА: ТОЛЬКО CONAN_PKG::catch2, БЕЗ ПСЕВДО-ТАРГЕТОВ ---
 target_link_libraries(collision_detection_tests 
     CONAN_PKG::catch2
-    Catch2::Catch2
     collision_detection_lib
 )
