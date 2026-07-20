@@ -1,53 +1,31 @@
-# ---- СТАДИЯ СБОРКИ ----
-FROM gcc:11 AS build
+FROM gcc:11.3 as build
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt update && \
+    apt install -y \
       python3-pip \
       cmake \
-      git && \
-    pip3 install conan==1.64.1 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    && \
+    pip3 install conan==1.*
 
-WORKDIR /app
+COPY conanfile.txt /app/
+RUN mkdir /app/build && cd /app/build && \
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11
 
-COPY conanfile.txt .
-COPY CMakeLists.txt .
-COPY src ./src
-COPY tests ./tests
-COPY data ./data
-COPY static ./static
+COPY ./src /app/src
+COPY CMakeLists.txt /app/
+COPY ./tests /app/tests
 
-RUN conan profile new default --detect && \
-    conan install . --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
-
-RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
+RUN cd /app/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-# ---- СТАДИЯ ЗАПУСКА ----
-FROM ubuntu:22.04 AS run
+FROM ubuntu:22.04 as run
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libstdc++6 \
-      ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN groupadd -r www && useradd -r -g www www
 
-RUN mkdir -p /app && \
-    useradd -m -u 1000 www && \
-    chown -R www:www /app
+COPY --from=build /app/build/bin/game_server /app/
+COPY ./data /app/data
+COPY ./static /app/static
+RUN chmod -R a+r /app/data /app/static
 
 USER www
-WORKDIR /app
-
-COPY --from=build /app/game_server /app/game_server
-COPY --from=build /app/data /app/data
-COPY --from=build /app/static /app/static
-
-RUN test -f /app/game_server && echo "✅ game_server exists" || (echo "❌ game_server missing" && exit 1)
-
-ENV STATIC_ROOT=/app/static
-EXPOSE 8080
-
-# ВАЖНО: Явно указываем 0.0.0.0, чтобы сервер слушал все интерфейсы
-CMD ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static"]
