@@ -5,7 +5,7 @@ RUN apt update && \
       python3-pip \
       cmake \
     && \
-    pip3 install conan==1.53.0
+    pip3 install conan==1.54.0
 
 COPY conanfile.txt /app/
 # Важно: копируем пустой .conanignore, чтобы Conan не обновлял рецепты
