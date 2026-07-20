@@ -5,13 +5,15 @@ RUN apt update && \
       python3-pip \
       cmake \
     && \
-    pip3 install conan==1.54.0
+    pip3 install conan==1.53.0
 
 COPY conanfile.txt /app/
+# Важно: копируем пустой .conanignore, чтобы Conan не обновлял рецепты
+COPY .conanignore /app/
+
 RUN mkdir /app/build && cd /app/build && \
-    # Устанавливаем зависимости для Debug и Release, запрещая обновление рецептов
-    conan install .. --build=missing -s compiler.libcxx=libstdc++11 -s build_type=Debug --no-update && \
-    conan install .. --build=missing -s compiler.libcxx=libstdc++11 -s build_type=Release --no-update
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11 -s build_type=Debug && \
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11 -s build_type=Release
 
 COPY ./src /app/src
 COPY ./tests /app/tests
