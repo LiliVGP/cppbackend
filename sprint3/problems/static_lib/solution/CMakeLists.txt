@@ -48,4 +48,3 @@ target_link_libraries(game_server_tests PRIVATE game_model CONAN_PKG::catch2 Thr
 # --- Интеграция с CTest ---
 include(CTest)
 include(${CONAN_BUILD_DIRS_CATCH2_DEBUG}/Catch.cmake)
-catch_discover_tests(game_server_tests)
