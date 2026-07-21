@@ -165,7 +165,6 @@ const model::Map::Id* Game::GetMapIdByToken(const std::string& token) const noex
 void Game::Tick(int time_delta_ms) {
     double time_seconds = time_delta_ms / 1000.0;
 
-    // Move players
     for (auto& [player_id, player] : all_players_) {
         const auto& speed = player.GetSpeed();
 
@@ -251,7 +250,6 @@ void Game::Tick(int time_delta_ms) {
         }
     }
 
-    // Generate loot for each map that has players
     if (loot_generator_) {
         for (auto& [map_id, player_ids] : map_players_) {
             if (player_ids.empty()) {
@@ -277,12 +275,10 @@ void Game::Tick(int time_delta_ms) {
             }
 
             for (unsigned i = 0; i < generated; ++i) {
-                // Pick a random road
                 std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
                 const Road& road = roads[road_dist(rng_)];
                 PlayerPosition pos = road.RandomPointOnRoad(rng_);
 
-                // Pick a random loot type
                 std::uniform_int_distribution<int> type_dist(0, static_cast<int>(map->GetLootTypeCount()) - 1);
 
                 LostObject obj;

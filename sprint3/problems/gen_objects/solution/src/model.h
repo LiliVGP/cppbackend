@@ -119,7 +119,6 @@ public:
         return bounded;
     }
 
-    // Generate a random point on this road
     PlayerPosition RandomPointOnRoad(std::mt19937& rng) const noexcept {
         PlayerPosition pos;
         if (IsHorizontal()) {
@@ -361,7 +360,6 @@ public:
 
     const Map::Id* GetMapIdByToken(const std::string& token) const noexcept;
 
-    // Loot generator config
     void SetLootGeneratorConfig(double period, double probability) {
         loot_period_ms_ = static_cast<int>(period * 1000);
         loot_probability_ = probability;
@@ -369,7 +367,6 @@ public:
             std::chrono::milliseconds(loot_period_ms_), probability);
     }
 
-    // Get lost objects for a map
     const std::vector<LostObject>& GetLostObjects(const Map::Id& map_id) const;
 
 private:
@@ -387,7 +384,6 @@ private:
 
     std::optional<double> default_dog_speed_;
 
-    // Loot generation
     int loot_period_ms_ = 5000;
     double loot_probability_ = 0.5;
     std::unique_ptr<loot_gen::LootGenerator> loot_generator_;

@@ -79,7 +79,6 @@ model::Map LoadMap(const json::object& map_obj, extra_data::MapExtraData& extra)
         map.SetDogSpeed(map_obj.at("dogSpeed").as_double());
     }
 
-    // Store loot types JSON in extra_data (outside model)
     if (map_obj.contains("lootTypes")) {
         const auto& loot_types = map_obj.at("lootTypes").as_array();
         extra.SetLootTypes(json::value(loot_types));
@@ -113,7 +112,6 @@ model::Game LoadGame(const std::filesystem::path& json_path, extra_data::GameExt
         game.SetDefaultDogSpeed(root.at("defaultDogSpeed").as_double());
     }
 
-    // Load loot generator config
     if (root.contains("lootGeneratorConfig")) {
         const auto& lg = root.at("lootGeneratorConfig").as_object();
         double period = lg.at("period").as_double();
