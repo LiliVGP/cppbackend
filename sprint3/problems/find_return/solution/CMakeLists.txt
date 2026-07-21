@@ -33,7 +33,6 @@ add_executable(game_server
 target_include_directories(game_server PRIVATE CONAN_PKG::boost)
 target_link_libraries(game_server PRIVATE CONAN_PKG::boost)
 
-# Тесты
 add_executable(game_server_tests
     src/model.h
     src/model.cpp
