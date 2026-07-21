@@ -51,11 +51,8 @@ def make_shots():
         shoot(AMMUNITION[ammo_number])
     print('Shooting complete')
 
-
-# Получаем команду для запуска сервера
 server_cmd = start_server()
 
-# Создаём временный конфигурационный файл
 config_data = {
     "maps": [
         {
@@ -71,11 +68,9 @@ with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
 
 print(f"Created temporary config: {config_path}")
 
-# Разбиваем команду на части (может содержать путь к серверу и другие аргументы)
 cmd_parts = shlex.split(server_cmd)
 server_exe = cmd_parts[0]
 
-# Запускаем сервер с конфигурационным файлом
 server = subprocess.Popen(
     [server_exe, config_path],
     stdout=subprocess.DEVNULL,
@@ -86,7 +81,6 @@ server = subprocess.Popen(
 print(f"Server PID: {server.pid}")
 time.sleep(2)
 
-# Проверяем, что сервер жив
 if server.poll() is not None:
     print(f"ERROR: Server died! Return code: {server.returncode}")
     stderr = server.stderr.read()
@@ -95,7 +89,6 @@ if server.poll() is not None:
     os.unlink(config_path)
     sys.exit(1)
 
-# Запускаем perf record
 perf = subprocess.Popen(
     ['perf', 'record', '-o', 'perf.data', '-p', str(server.pid), '-F', '999', '-g', '--', 'sleep', '10'],
     stderr=subprocess.DEVNULL
@@ -103,25 +96,20 @@ perf = subprocess.Popen(
 
 time.sleep(1)
 
-# Обстреливаем
 make_shots()
 
 time.sleep(2)
 
-# Останавливаем perf
 perf.send_signal(signal.SIGINT)
 perf.wait()
 
-# Останавливаем сервер
 stop(server)
 os.unlink(config_path)
 
-# Проверяем perf.data
 if not os.path.exists('perf.data') or os.path.getsize('perf.data') == 0:
     print("ERROR: perf.data is empty or does not exist!")
     sys.exit(1)
 
-# Строим флеймграф
 flamegraph_dir = './FlameGraph'
 
 perf_script = subprocess.Popen(
@@ -156,7 +144,6 @@ cxxfilt.wait()
 stackcollapse.wait()
 flamegraph.wait()
 
-# Проверяем graph.svg
 if os.path.exists('graph.svg'):
     with open('graph.svg', 'r') as f:
         content = f.read()
