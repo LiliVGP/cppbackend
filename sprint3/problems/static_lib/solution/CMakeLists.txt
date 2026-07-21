@@ -9,10 +9,8 @@ conan_basic_setup(TARGETS)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# Явно находим нужные компоненты Boost
 find_package(Boost COMPONENTS json system REQUIRED)
 
-# --- Статическая библиотека ---
 add_library(game_model STATIC
     src/model.h
     src/model.cpp
@@ -26,10 +24,8 @@ add_library(game_model STATIC
 )
 
 target_include_directories(game_model PUBLIC src)
-# Линкуем конкретные компоненты, чтобы не тянуть лишнее (например, тестовый фреймворк)
 target_link_libraries(game_model PUBLIC Boost::json Boost::system)
 
-# --- Сервер ---
 add_executable(game_server
     src/main.cpp
     src/http_server.h
@@ -41,15 +37,12 @@ add_executable(game_server
 
 target_link_libraries(game_server PRIVATE game_model Threads::Threads)
 
-# --- Тесты ---
 add_executable(game_server_tests
     tests/loot_generator_tests.cpp
 )
 
-# Ключевое исправление: не линкуем Boost к тестам, чтобы не подтянуть boost_test
 target_link_libraries(game_server_tests PRIVATE game_model CONAN_PKG::catch2 Threads::Threads)
 
-# --- CTest ---
 include(CTest)
 
 if(DEFINED CONAN_BUILD_DIRS_CATCH2_DEBUG)

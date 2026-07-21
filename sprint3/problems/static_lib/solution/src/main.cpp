@@ -58,10 +58,8 @@ int main(int argc, const char* argv[]) {
     try {
         Args args = ParseArgs(argc, argv);
 
-        // Create extra_data module for non-model JSON data
         extra_data::GameExtraData extra_data;
 
-        // Load game with extra_data support
         model::Game game = json_loader::LoadGame(args.config_file, extra_data);
 
         const unsigned num_threads = std::thread::hardware_concurrency();
