@@ -72,7 +72,6 @@ namespace http_handler {
             map_obj["buildings"] = SerializeBuildings(map);
             map_obj["offices"] = SerializeOffices(map);
 
-            // Add lootTypes from extra_data (not from model)
             const auto* map_extra = extra_data.GetMapExtraData(map.GetId());
             if (map_extra) {
                 map_obj["lootTypes"] = map_extra->GetLootTypes();
@@ -101,43 +100,36 @@ namespace http_handler {
         void operator()(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
             std::string_view target = req.target();
 
-            // Handle /api/v1/maps
             if (target.starts_with("/api/v1/maps"sv)) {
                 HandleMaps(req, send);
                 return;
             }
 
-            // Handle /api/v1/game/join
             if (target == "/api/v1/game/join"sv) {
                 HandleJoin(req, send);
                 return;
             }
 
-            // Handle /api/v1/game/state
             if (target == "/api/v1/game/state"sv) {
                 HandleState(req, send);
                 return;
             }
 
-            // Handle /api/v1/game/player/action
             if (target == "/api/v1/game/player/action"sv) {
                 HandleAction(req, send);
                 return;
             }
 
-            // Handle /api/v1/game/tick
             if (target == "/api/v1/game/tick"sv) {
                 HandleTick(req, send);
                 return;
             }
 
-            // Handle /api/v1/game/players
             if (target == "/api/v1/game/players"sv) {
                 HandlePlayers(req, send);
                 return;
             }
 
-            // Bad request for unknown API endpoints
             if (target.starts_with("/api/"sv)) {
                 json::object err_obj;
                 err_obj["code"] = "badRequest";
@@ -146,7 +138,6 @@ namespace http_handler {
                 return;
             }
 
-            // Serve static files for GET/HEAD
             if (req.method() == http::verb::get || req.method() == http::verb::head) {
                 if (ServeStaticFile(req, send)) {
                     return;
@@ -165,7 +156,6 @@ namespace http_handler {
             std::string_view target = req.target();
             std::string_view api_prefix = "/api/v1/maps"sv;
 
-            // Only GET and HEAD allowed for maps
             if (req.method() != http::verb::get && req.method() != http::verb::head) {
                 json::object err_obj;
                 err_obj["code"] = "invalidMethod";
@@ -177,7 +167,6 @@ namespace http_handler {
             std::string_view suffix = target.substr(api_prefix.size());
 
             if (suffix.empty() || suffix == "/"sv) {
-                // List all maps
                 json::array maps_arr;
                 for (const auto& map : game_.GetMaps()) {
                     json::object map_obj;
@@ -361,7 +350,6 @@ namespace http_handler {
 
                 player_obj["dir"] = model::DirectionToString(player->GetDirection());
 
-                // Add bag
                 json::array bag_arr;
                 for (const auto& item : player->GetBag()) {
                     json::object bag_item;
@@ -371,7 +359,6 @@ namespace http_handler {
                 }
                 player_obj["bag"] = std::move(bag_arr);
 
-                // Add score
                 player_obj["score"] = player->GetScore();
 
                 players_obj[std::to_string(id)] = std::move(player_obj);
@@ -379,7 +366,6 @@ namespace http_handler {
 
             resp_obj["players"] = std::move(players_obj);
 
-            // Add lost objects
             const auto* map_id = game_.GetMapIdByToken(token);
             if (map_id) {
                 const auto& lost_objects = game_.GetLostObjects(*map_id);
@@ -647,7 +633,6 @@ namespace http_handler {
             bool keep_alive) {
             http::response<http::string_body> response(status, req.version());
 
-            // For HEAD requests, return empty body
             if (req.method() == http::verb::head) {
                 response.set(http::field::content_type, "application/json"sv);
                 response.set("Cache-Control", "no-cache"sv);

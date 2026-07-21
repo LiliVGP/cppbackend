@@ -12,7 +12,6 @@
 using namespace collision_detector;
 using namespace Catch::Matchers;
 
-// Специализация для красивого вывода событий в случае ошибки теста
 namespace Catch {
     template <>
     struct StringMaker<collision_detector::GatheringEvent> {
@@ -27,7 +26,6 @@ namespace Catch {
     };
 }  // namespace Catch
 
-// Класс-провайдер для тестов
 class TestProvider : public ItemGathererProvider {
 public:
     TestProvider(std::vector<Gatherer> gatherers, std::vector<Item> items)
@@ -45,20 +43,16 @@ private:
     std::vector<Item> items_;
 };
 
-// Вспомогательная функция для создания точки
 geom::Point2D P(double x, double y) { return { x, y }; }
 
-// Вспомогательная функция для создания собирателя
 Gatherer G(double x1, double y1, double x2, double y2, double width = 0.0) {
     return { P(x1, y1), P(x2, y2), width };
 }
 
-// Вспомогательная функция для создания предмета
 Item I(double x, double y, double width = 0.0) {
     return { P(x, y), width };
 }
 
-// Матчер для сравнения векторов событий с плавающей точкой
 struct GatheringEventMatcher : Catch::Matchers::MatcherBase<std::vector<GatheringEvent>> {
     GatheringEventMatcher(std::vector<GatheringEvent> target) : target_(std::move(target)) {}
 
@@ -90,7 +84,6 @@ private:
     std::vector<GatheringEvent> target_;
 };
 
-// Перегрузка оператора для удобства
 inline GatheringEventMatcher EqualsEvents(std::vector<GatheringEvent> events) {
     return GatheringEventMatcher(std::move(events));
 }
@@ -115,16 +108,12 @@ SCENARIO("Collision detection") {
             TestProvider provider({ G(0, 0, 10, 0, 1.0) }, { I(5, 0.9, 1.0) });
             auto events = FindGatherEvents(provider);
 
-            // Радиусы: 1.0 + 1.0 = 2.0. Квадрат расстояния: 0.9^2 = 0.81.
-            // Расстояние 0.81 <= 4.0 (квадрат радиуса). Событие должно быть.
             THEN("An event should be detected") {
                 REQUIRE(events.size() == 1);
                 auto& e = events[0];
                 REQUIRE(e.item_id == 0);
                 REQUIRE(e.gatherer_id == 0);
-                // Время должно быть ровно 0.5, так как проекция точки на ось X равна 5.
                 REQUIRE_THAT(e.time, WithinAbs(0.5, 1e-10));
-                // Квадрат расстояния должен быть равен 0.81.
                 REQUIRE_THAT(e.sq_distance, WithinAbs(0.81, 1e-10));
             }
         }
@@ -155,7 +144,6 @@ SCENARIO("Collision detection") {
     }
 
     GIVEN("A gatherer moving backwards") {
-        // Движение влево, сбор должен происходить только при движении
         auto gatherer = G(10, 0, 0, 0);
 
         WHEN("An item is on the path from start to end") {
@@ -191,29 +179,22 @@ SCENARIO("Collision detection") {
         Gatherer g1 = G(0, 0, 10, 0);
         Gatherer g2 = G(0, 2, 10, 2);
 
-        // Заметим, что g2 проходит прямо над item1, но это не должно влиять на сбор
         Item item1 = I(5, 0);
-        Item item2 = I(5, 2.1, 1.0); // g2 с радиусом 0 подбирает на расстоянии 2.1?
+        Item item2 = I(5, 2.1, 1.0);
 
         WHEN("Finding events") {
             TestProvider provider({ g1, g2 }, { item1, item2 });
             auto events = FindGatherEvents(provider);
 
             THEN("All valid events should be detected and sorted by time") {
-                // Ожидаемые события:
-                // 1. g1 собирает item1 в момент времени 0.5, расстояние 0.
-                // 2. g2 собирает item2 в момент времени 0.5, расстояние 0.
+
                 std::vector<GatheringEvent> expected = {
-                    {0, 0, 0.0, 0.5}, // g1, item1
-                    {1, 1, 0.0, 0.5}  // g2, item2
+                    {0, 0, 0.0, 0.5},
+                    {1, 1, 0.0, 0.5}
                 };
-                // Так как время одинаковое, порядок может быть любым.
-                // Но мы можем проверить, что оба события присутствуют.
+
                 REQUIRE(events.size() == 2);
 
-                // Проверяем наличие событий. 
-                // Так как порядок не гарантирован, ищем каждое событие.
-                // В реальном коде можно было бы отсортировать по ID, но здесь просто проверим.
                 auto find_event = [&](size_t g, size_t i) {
                     return std::find_if(events.begin(), events.end(),
                         [&](const GatheringEvent& e) {
@@ -227,7 +208,6 @@ SCENARIO("Collision detection") {
                 REQUIRE(it1 != events.end());
                 REQUIRE(it2 != events.end());
 
-                // Дополнительно проверяем, что нет лишних событий (например, g2 не подобрал item1)
                 auto bad = find_event(1, 0);
                 REQUIRE(bad == events.end());
             }
