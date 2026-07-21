@@ -1,4 +1,15 @@
-#include "request_handler.h"
+#pragma once
+#include "http_server.h"
+#include "model.h"
+#include "extra_data.h"
+#include "collision_detector.h"
+
+#include <boost/json.hpp>
+#include <filesystem>
+#include <fstream>
+#include <string_view>
+#include <random>
+#include <sstream>
 
 namespace http_handler {
     namespace beast = boost::beast;
@@ -350,7 +361,7 @@ namespace http_handler {
 
                 player_obj["dir"] = model::DirectionToString(player->GetDirection());
 
-                // --- ДОБАВЛЕНО: Рюкзак и счёт ---
+                // Add bag
                 json::array bag_arr;
                 for (const auto& item : player->GetBag()) {
                     json::object bag_item;
@@ -360,8 +371,8 @@ namespace http_handler {
                 }
                 player_obj["bag"] = std::move(bag_arr);
 
+                // Add score
                 player_obj["score"] = player->GetScore();
-                // ---------------------------------
 
                 players_obj[std::to_string(id)] = std::move(player_obj);
             }

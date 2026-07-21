@@ -32,7 +32,7 @@ namespace collision_detector {
                 continue;
             }
 
-            // Радиус собирателя + радиус предмета для проверки пересечения
+            // Радиус собирателя для проверки пересечения
             double gatherer_radius = gatherer.width;
 
             for (size_t i = 0; i < provider.ItemsCount(); ++i) {

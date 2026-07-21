@@ -9,13 +9,17 @@ namespace json_loader {
     namespace detail {
 
         void LoadRoads(const json::object& map_obj, model::Map& map) {
-            if (!map_obj.if_contains("roads")) return;
+            if (!map_obj.if_contains("roads")) {
+                return;
+            }
+
             for (const json::value& road_val : map_obj.at("roads").as_array()) {
                 const json::object& road_obj = road_val.as_object();
                 model::Point start{
                     static_cast<model::Coord>(road_obj.at("x0").as_int64()),
                     static_cast<model::Coord>(road_obj.at("y0").as_int64())
                 };
+
                 if (road_obj.if_contains("x1")) {
                     model::Coord end_x = static_cast<model::Coord>(road_obj.at("x1").as_int64());
                     map.AddRoad(model::Road(model::Road::HORIZONTAL, start, end_x));
@@ -28,7 +32,10 @@ namespace json_loader {
         }
 
         void LoadBuildings(const json::object& map_obj, model::Map& map) {
-            if (!map_obj.if_contains("buildings")) return;
+            if (!map_obj.if_contains("buildings")) {
+                return;
+            }
+
             for (const json::value& building_val : map_obj.at("buildings").as_array()) {
                 const json::object& building_obj = building_val.as_object();
                 model::Point position{
@@ -44,7 +51,10 @@ namespace json_loader {
         }
 
         void LoadOffices(const json::object& map_obj, model::Map& map) {
-            if (!map_obj.if_contains("offices")) return;
+            if (!map_obj.if_contains("offices")) {
+                return;
+            }
+
             for (const json::value& office_val : map_obj.at("offices").as_array()) {
                 const json::object& office_obj = office_val.as_object();
                 model::Office::Id office_id(std::string(office_obj.at("id").as_string()));
@@ -60,41 +70,28 @@ namespace json_loader {
             }
         }
 
-        void LoadLootTypes(const json::object& map_obj, extra_data::MapExtraData& extra, model::Map& map) {
-            if (map_obj.contains("lootTypes")) {
-                const auto& loot_types = map_obj.at("lootTypes").as_array();
-                extra.SetLootTypes(json::value(loot_types));
-                map.SetLootTypeCount(loot_types.size());
-
-                // Загружаем стоимость каждого типа предмета
-                std::vector<int> values;
-                for (const auto& item : loot_types) {
-                    if (item.as_object().contains("value")) {
-                        values.push_back(item.as_object().at("value").as_int64());
-                    }
-                    else {
-                        values.push_back(0); // По умолчанию стоимость 0
-                    }
-                }
-                extra.SetLootValues(values);
-            }
-        }
-
         model::Map LoadMap(const json::object& map_obj, extra_data::MapExtraData& extra) {
             model::Map::Id map_id(std::string(map_obj.at("id").as_string()));
             std::string map_name(map_obj.at("name").as_string());
+
             model::Map map(std::move(map_id), std::move(map_name));
 
             if (map_obj.contains("dogSpeed")) {
                 map.SetDogSpeed(map_obj.at("dogSpeed").as_double());
             }
 
-            // Загружаем вместимость рюкзака для карты
+            // Load bag capacity
             if (map_obj.contains("bagCapacity")) {
                 map.SetBagCapacity(map_obj.at("bagCapacity").as_int64());
             }
 
-            LoadLootTypes(map_obj, extra, map);
+            // Store loot types JSON in extra_data (outside model)
+            if (map_obj.contains("lootTypes")) {
+                const auto& loot_types = map_obj.at("lootTypes").as_array();
+                extra.SetLootTypes(json::value(loot_types));
+                map.SetLootTypeCount(loot_types.size());
+            }
+
             LoadRoads(map_obj, map);
             LoadBuildings(map_obj, map);
             LoadOffices(map_obj, map);
@@ -122,11 +119,12 @@ namespace json_loader {
             game.SetDefaultDogSpeed(root.at("defaultDogSpeed").as_double());
         }
 
-        // Загружаем глобальную вместимость рюкзака
+        // Load default bag capacity
         if (root.contains("defaultBagCapacity")) {
             game.SetDefaultBagCapacity(root.at("defaultBagCapacity").as_int64());
         }
 
+        // Load loot generator config
         if (root.contains("lootGeneratorConfig")) {
             const auto& lg = root.at("lootGeneratorConfig").as_object();
             double period = lg.at("period").as_double();
@@ -137,8 +135,7 @@ namespace json_loader {
         for (const json::value& map_val : root.at("maps").as_array()) {
             const json::object& map_obj = map_val.as_object();
             extra_data::MapExtraData map_extra;
-            model::Map map = detail::LoadMap(map_obj, map_extra);
-            game.AddMap(std::move(map));
+            game.AddMap(detail::LoadMap(map_obj, map_extra));
             extra_data.SetMapExtraData(game.GetMaps().back().GetId(), std::move(map_extra));
         }
 

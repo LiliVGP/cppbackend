@@ -7,9 +7,11 @@
 #include <random>
 #include <chrono>
 #include <memory>
+#include <deque>
 
 #include "tagged.h"
 #include "loot_generator.h"
+#include "collision_detector.h"
 
 namespace model {
 
@@ -54,6 +56,7 @@ namespace model {
         struct HorizontalTag {
             explicit HorizontalTag() = default;
         };
+
         struct VerticalTag {
             explicit VerticalTag() = default;
         };
@@ -65,17 +68,30 @@ namespace model {
         static constexpr double ROAD_HALF_WIDTH = 0.4;
 
         Road(HorizontalTag, Point start, Coord end_x) noexcept
-            : start_{ start }, end_{ end_x, start.y } {
+            : start_{ start }
+            , end_{ end_x, start.y } {
         }
 
         Road(VerticalTag, Point start, Coord end_y) noexcept
-            : start_{ start }, end_{ start.x, end_y } {
+            : start_{ start }
+            , end_{ start.x, end_y } {
         }
 
-        bool IsHorizontal() const noexcept { return start_.y == end_.y; }
-        bool IsVertical() const noexcept { return start_.x == end_.x; }
-        Point GetStart() const noexcept { return start_; }
-        Point GetEnd() const noexcept { return end_; }
+        bool IsHorizontal() const noexcept {
+            return start_.y == end_.y;
+        }
+
+        bool IsVertical() const noexcept {
+            return start_.x == end_.x;
+        }
+
+        Point GetStart() const noexcept {
+            return start_;
+        }
+
+        Point GetEnd() const noexcept {
+            return end_;
+        }
 
         struct RoadBounds {
             double min_x, min_y;
@@ -105,6 +121,7 @@ namespace model {
             return bounded;
         }
 
+        // Generate a random point on this road
         PlayerPosition RandomPointOnRoad(std::mt19937& rng) const noexcept {
             PlayerPosition pos;
             if (IsHorizontal()) {
@@ -131,8 +148,14 @@ namespace model {
 
     class Building {
     public:
-        explicit Building(Rectangle bounds) noexcept : bounds_{ bounds } {}
-        const Rectangle& GetBounds() const noexcept { return bounds_; }
+        explicit Building(Rectangle bounds) noexcept
+            : bounds_{ bounds } {
+        }
+
+        const Rectangle& GetBounds() const noexcept {
+            return bounds_;
+        }
+
     private:
         Rectangle bounds_;
     };
@@ -142,12 +165,23 @@ namespace model {
         using Id = util::Tagged<std::string, Office>;
 
         Office(Id id, Point position, Offset offset) noexcept
-            : id_{ std::move(id) }, position_{ position }, offset_{ offset } {
+            : id_{ std::move(id) }
+            , position_{ position }
+            , offset_{ offset } {
         }
 
-        const Id& GetId() const noexcept { return id_; }
-        Point GetPosition() const noexcept { return position_; }
-        Offset GetOffset() const noexcept { return offset_; }
+        const Id& GetId() const noexcept {
+            return id_;
+        }
+
+        Point GetPosition() const noexcept {
+            return position_;
+        }
+
+        Offset GetOffset() const noexcept {
+            return offset_;
+        }
+
     private:
         Id id_;
         Point position_;
@@ -161,29 +195,64 @@ namespace model {
         using Buildings = std::vector<Building>;
         using Offices = std::vector<Office>;
 
-        Map(Id id, std::string name) noexcept : id_(std::move(id)), name_(std::move(name)) {}
+        Map(Id id, std::string name) noexcept
+            : id_(std::move(id))
+            , name_(std::move(name)) {
+        }
 
-        const Id& GetId() const noexcept { return id_; }
-        const std::string& GetName() const noexcept { return name_; }
-        const Buildings& GetBuildings() const noexcept { return buildings_; }
-        const Roads& GetRoads() const noexcept { return roads_; }
-        const Offices& GetOffices() const noexcept { return offices_; }
+        const Id& GetId() const noexcept {
+            return id_;
+        }
 
-        void AddRoad(const Road& road) { roads_.emplace_back(road); }
-        void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
+        const std::string& GetName() const noexcept {
+            return name_;
+        }
+
+        const Buildings& GetBuildings() const noexcept {
+            return buildings_;
+        }
+
+        const Roads& GetRoads() const noexcept {
+            return roads_;
+        }
+
+        const Offices& GetOffices() const noexcept {
+            return offices_;
+        }
+
+        void AddRoad(const Road& road) {
+            roads_.emplace_back(road);
+        }
+
+        void AddBuilding(const Building& building) {
+            buildings_.emplace_back(building);
+        }
+
         void AddOffice(Office office);
 
         double GetDogSpeed(double default_speed) const noexcept {
             return dog_speed_.value_or(default_speed);
         }
-        void SetDogSpeed(double speed) noexcept { dog_speed_ = speed; }
 
-        size_t GetLootTypeCount() const noexcept { return loot_type_count_; }
-        void SetLootTypeCount(size_t count) noexcept { loot_type_count_ = count; }
+        void SetDogSpeed(double speed) noexcept {
+            dog_speed_ = speed;
+        }
 
-        // Новые методы для вместимости рюкзака
-        void SetBagCapacity(int capacity) noexcept { bag_capacity_ = capacity; }
-        int GetBagCapacity() const noexcept { return bag_capacity_; }
+        size_t GetLootTypeCount() const noexcept {
+            return loot_type_count_;
+        }
+
+        void SetLootTypeCount(size_t count) noexcept {
+            loot_type_count_ = count;
+        }
+
+        // Bag capacity
+        int GetBagCapacity(int default_capacity) const noexcept {
+            return bag_capacity_.value_or(default_capacity);
+        }
+        void SetBagCapacity(int capacity) noexcept {
+            bag_capacity_ = capacity;
+        }
 
     private:
         using OfficeIdToIndex = std::unordered_map<Office::Id, size_t, util::TaggedHasher<Office::Id>>;
@@ -193,38 +262,85 @@ namespace model {
         Roads roads_;
         Buildings buildings_;
         std::optional<double> dog_speed_;
+        std::optional<int> bag_capacity_;
         size_t loot_type_count_ = 0;
-        int bag_capacity_ = 3; // По умолчанию 3
 
         OfficeIdToIndex warehouse_id_to_index_;
         Offices offices_;
     };
 
+    // Bag item
+    struct BagItem {
+        int id;
+        int type;
+        int value;
+    };
+
     class Player {
     public:
         Player(int id, const std::string& name, PlayerPosition pos, PlayerSpeed speed, PlayerDirection dir)
-            : id_(id), name_(name), pos_(pos), speed_(speed), dir_(dir) {
+            : id_(id)
+            , name_(name)
+            , pos_(pos)
+            , speed_(speed)
+            , dir_(dir) {
         }
 
-        int GetId() const noexcept { return id_; }
-        const std::string& GetName() const noexcept { return name_; }
-        const PlayerPosition& GetPosition() const noexcept { return pos_; }
-        const PlayerSpeed& GetSpeed() const noexcept { return speed_; }
-        PlayerDirection GetDirection() const noexcept { return dir_; }
+        int GetId() const noexcept {
+            return id_;
+        }
 
-        void SetSpeed(double dx, double dy) noexcept { speed_.dx = dx; speed_.dy = dy; }
-        void SetPosition(double x, double y) noexcept { pos_.x = x; pos_.y = y; }
-        void SetDirection(PlayerDirection dir) noexcept { dir_ = dir; }
+        const std::string& GetName() const noexcept {
+            return name_;
+        }
 
-        // Новые методы для рюкзака
-        const std::vector<LostObject>& GetBag() const noexcept { return bag_; }
-        void AddToBag(const LostObject& obj) { bag_.push_back(obj); }
-        void ClearBag() { bag_.clear(); }
-        size_t GetBagSize() const { return bag_.size(); }
+        const PlayerPosition& GetPosition() const noexcept {
+            return pos_;
+        }
 
-        // Новые методы для счёта
-        int GetScore() const noexcept { return score_; }
-        void AddScore(int points) { score_ += points; }
+        const PlayerSpeed& GetSpeed() const noexcept {
+            return speed_;
+        }
+
+        PlayerDirection GetDirection() const noexcept {
+            return dir_;
+        }
+
+        void SetSpeed(double dx, double dy) noexcept {
+            speed_.dx = dx;
+            speed_.dy = dy;
+        }
+
+        void SetPosition(double x, double y) noexcept {
+            pos_.x = x;
+            pos_.y = y;
+        }
+
+        void SetDirection(PlayerDirection dir) noexcept {
+            dir_ = dir;
+        }
+
+        // Bag and score
+        const std::deque<BagItem>& GetBag() const noexcept {
+            return bag_;
+        }
+        int GetScore() const noexcept {
+            return score_;
+        }
+
+        void AddToBag(BagItem item) {
+            bag_.push_back(std::move(item));
+        }
+        void ClearBag() {
+            bag_.clear();
+        }
+        void AddScore(int points) {
+            score_ += points;
+        }
+
+        bool IsBagFull(int capacity) const noexcept {
+            return static_cast<int>(bag_.size()) >= capacity;
+        }
 
     private:
         int id_;
@@ -232,15 +348,15 @@ namespace model {
         PlayerPosition pos_;
         PlayerSpeed speed_;
         PlayerDirection dir_;
-        std::vector<LostObject> bag_; // Рюкзак игрока
-        int score_ = 0;               // Счёт игрока
+        std::deque<BagItem> bag_;
+        int score_ = 0;
     };
 
     struct LostObject {
         int id;
         int type;
+        int value;
         PlayerPosition pos;
-        int value; // Стоимость предмета
     };
 
     class Game {
@@ -249,7 +365,10 @@ namespace model {
 
         void AddMap(Map map);
 
-        const Maps& GetMaps() const noexcept { return maps_; }
+        const Maps& GetMaps() const noexcept {
+            return maps_;
+        }
+
         const Map* FindMap(const Map::Id& id) const noexcept {
             if (auto it = map_id_to_index_.find(id); it != map_id_to_index_.end()) {
                 return &maps_.at(it->second);
@@ -260,6 +379,7 @@ namespace model {
         struct PlayerInfo {
             std::string name;
         };
+
         using Players = std::unordered_map<int, PlayerInfo>;
 
         int AddPlayer(const std::string& user_name, const Map::Id& map_id);
@@ -272,13 +392,27 @@ namespace model {
 
         bool ValidateToken(const std::string& token) const noexcept;
         int GetPlayerIdByToken(const std::string& token) const noexcept;
+
         static bool IsValidTokenFormat(const std::string& token);
 
-        void SetDefaultDogSpeed(double speed) noexcept { default_dog_speed_ = speed; }
-        double GetDefaultDogSpeed() const noexcept { return default_dog_speed_.value_or(1.0); }
+        void SetDefaultDogSpeed(double speed) noexcept {
+            default_dog_speed_ = speed;
+        }
+
+        double GetDefaultDogSpeed() const noexcept {
+            return default_dog_speed_.value_or(1.0);
+        }
+
+        void SetDefaultBagCapacity(int capacity) noexcept {
+            default_bag_capacity_ = capacity;
+        }
+        int GetDefaultBagCapacity() const noexcept {
+            return default_bag_capacity_.value_or(3);
+        }
 
         const Map::Id* GetMapIdByToken(const std::string& token) const noexcept;
 
+        // Loot generator config
         void SetLootGeneratorConfig(double period, double probability) {
             loot_period_ms_ = static_cast<int>(period * 1000);
             loot_probability_ = probability;
@@ -286,15 +420,22 @@ namespace model {
                 std::chrono::milliseconds(loot_period_ms_), probability);
         }
 
+        // Get lost objects for a map
         const std::vector<LostObject>& GetLostObjects(const Map::Id& map_id) const;
 
-        // Новые методы для вместимости рюкзака
-        void SetDefaultBagCapacity(int capacity) noexcept { default_bag_capacity_ = capacity; }
-        int GetDefaultBagCapacity() const noexcept { return default_bag_capacity_; }
+        // Access to mutable player (needed for collision handling)
+        Player* GetMutablePlayer(int player_id) {
+            auto it = all_players_.find(player_id);
+            return it != all_players_.end() ? &it->second : nullptr;
+        }
 
     private:
         using MapIdHasher = util::TaggedHasher<Map::Id>;
         using MapIdToIndex = std::unordered_map<Map::Id, size_t, MapIdHasher>;
+
+        void ProcessCollisions(int time_delta_ms);
+        void ProcessItemCollisions(const Map::Id& map_id, int time_delta_ms);
+        void ProcessOfficeCollisions(const Map::Id& map_id, int time_delta_ms);
 
         std::vector<Map> maps_;
         MapIdToIndex map_id_to_index_;
@@ -306,16 +447,15 @@ namespace model {
         std::unordered_map<int, Player> all_players_;
 
         std::optional<double> default_dog_speed_;
+        std::optional<int> default_bag_capacity_;
 
+        // Loot generation
         int loot_period_ms_ = 5000;
         double loot_probability_ = 0.5;
         std::unique_ptr<loot_gen::LootGenerator> loot_generator_;
         std::unordered_map<Map::Id, std::vector<LostObject>, util::TaggedHasher<Map::Id>> map_loot_;
         std::unordered_map<Map::Id, int, util::TaggedHasher<Map::Id>> next_loot_id_;
         std::mt19937 rng_{ std::random_device{}() };
-
-        // Новое поле: глобальная вместимость рюкзака по умолчанию
-        int default_bag_capacity_ = 3;
     };
 
 }  // namespace model
