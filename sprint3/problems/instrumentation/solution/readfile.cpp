@@ -23,7 +23,7 @@ GraphList getGraphFromFile (char * file, NodeHashTbl * nodehash, Config * config
 	int timestamp;
 	char name[BUFSIZE];
 
-	char * current_session = (char *) malloc (1); // so we can free it
+	char * current_session = (char *) malloc (1);
 	Node * last_node = NULL;
 	Node * current_node = NULL;
 
@@ -31,7 +31,6 @@ GraphList getGraphFromFile (char * file, NodeHashTbl * nodehash, Config * config
 	fprintf(stderr, "Ignoring refreshes: %d", config->ignore_refresh);
 #endif
 
-	// while (fscanf(in, "%s\t%d\t%s\n", &session, &timestamp, &name) > 0)
 	while (fgets (buffer, BUFSIZE, in))
 	{
 		if (!sscanf(buffer, "%s\t%d\t%s\n", &session, &timestamp, &name))
@@ -48,12 +47,11 @@ GraphList getGraphFromFile (char * file, NodeHashTbl * nodehash, Config * config
 		{
 			free (current_session);
 			current_session = strdup(session);
-			// TODO maybe check for graphs without edges?
 			current_graphlistnode = newGraphListNode(current_graphlistnode, current_node);
 		}
 		else
 		{
-			if ((!config->ignore_refresh) // if false, just add the edge
+			if ((!config->ignore_refresh)
 					|| (strcmp(last_node->name, current_node->name) != 0))
 			{
 				addEdge(current_graphlistnode->graph, last_node, current_node);

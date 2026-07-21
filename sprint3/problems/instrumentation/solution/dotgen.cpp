@@ -4,7 +4,6 @@
 #define BUFSIZE 100
 #undef DEBUG
 
-/* a pointer to this struct * is passed on to FindTreshold while walking */
 struct findtreshold_arg
 {
         int n_edges;
@@ -14,7 +13,6 @@ struct findtreshold_arg
 void CountEdges (void * content, void * arg)
 {
         findtreshold_arg * args = (findtreshold_arg *) arg;
-        // TODO wat als edge->next != null? Juist!
         AnnotatedEdge * current = (AnnotatedEdge *)content;
         while (current != NULL)
         {
@@ -36,7 +34,6 @@ int FindTreshold(BinaryTree * tree_root, int max_edgecount)
 	
 	while ((args->n_edges > max_edgecount) || (args->n_edges == -1))
 	{
-		//AnnotatedEdge * current_edge = start_edge;
 		args->n_edges = 0;
 
 		tree_root->walk(CountEdges, args);
@@ -105,7 +102,6 @@ void PrintEdge (void * content, void * arg)
 void GenerateDot (FILE * dest, AnnotatedGraph * g, NodeHashTbl * nodehash, Config * config)
 {
 	fprintf(dest, "digraph site_usage {\n");
-	//fprintf(dest, "concentrate=true\n");
 	fprintf(dest, "size=\"7,10\"\n");
 	fprintf(dest, "page=\"8.5,11\"\n");
 	fprintf(dest, "rotate=90\n");
@@ -124,8 +120,6 @@ void GenerateDot (FILE * dest, AnnotatedGraph * g, NodeHashTbl * nodehash, Confi
 
 	g->edgetree->walk (PrintEdge, args);
 	nodehash->walk (PrintNode, dest);
-
-	/* TODO walk nodes */
 
 	fprintf(dest, "}\n");
 }

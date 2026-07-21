@@ -12,10 +12,9 @@ Config * ReadConfig (char * file)
 	FILE * in;
 	Config * retval = (Config *) malloc (sizeof(Config));
 
-	// DEFAULTS
-	retval->min_edgewidth = -1; // auto
-	retval->max_edgecount = 60; // when auto, max 60 edges
-	retval->ignore_refresh = 0; // don't ignore refreshes
+	retval->min_edgewidth = -1;
+	retval->max_edgecount = 60;
+	retval->ignore_refresh = 0;
 
 	in = fopen (file, "r");
 
@@ -56,11 +55,10 @@ Config * ReadConfig (char * file)
 			fprintf(stderr, "Ignore_refresh is %d\n", retval->ignore_refresh);
 #endif
 		}
-		// Options for other parts of the series
 		else if ((strcmp(option, "unify") == 0)
 			|| (strcmp(option, "ignore") == 0))
 		{
-			// ignore
+
 		}
 		else
 		{

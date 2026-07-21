@@ -95,24 +95,12 @@ struct GraphListNode
 typedef struct GraphListNode * GraphList;
 typedef struct NodeListNode * NodeList;
 
-/*
- * Takes the name of a node and returns the node with that name, or, if that node doesn't
- * exist, adds a node with that name to the global nodelist.
- */
 Node * getNode (char * name, NodeHashTbl * nodehash);
 
-/*
- * Creates a GraphListNode with an empty graph
- */
 GraphListNode * newGraphListNode (GraphListNode * next, Node * start);
 
 void addEdge (Graph * graph, Node * from, Node * to);
 
-/*
- * adds an edge to an annotated graph, at the same time
- * converting it to an annotated edge and counting the number
- * of times it occurs.
- */
 void addAnnotatedEdge(AnnotatedGraph * g, Edge * edge);
 
 AnnotatedGraph * summarize (GraphList g, Config * config);

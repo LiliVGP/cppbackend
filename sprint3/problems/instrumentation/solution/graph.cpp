@@ -55,8 +55,6 @@ NodeHashTbl::NodeHashTbl(int n_size)
 
 void NodeHashTbl::add(char * key, Node * content)
 {
-        //assert (strcmp (key, content->name) == 0);
-
         int hkey = HashString (key) % size;
         table[hkey] = new HashNode(key, content, table[hkey]);
 }
@@ -68,8 +66,6 @@ Node * NodeHashTbl::get(char * key)
         {
                 if (strcmp(current_node->key, key) == 0)
                 {
-                        //assert (strcmp (key, current_node->node->name) == 0);
-
                         return current_node->node;
                 }
                 current_node=current_node->next;
@@ -87,10 +83,8 @@ Node * newNode (char * name)
 	return retval;
 }
 
-/* remove bad characters from names, should move somewhere else probably */
 void FixName (char * name)
 {
-	// Node names may not end with '\' or '/'
 	while ((name[strlen(name)-1] == '\\')
 		|| (name[strlen(name)-1] == '/'))
 	{
@@ -131,13 +125,6 @@ GraphListNode * newGraphListNode (GraphListNode * next, Node * start)
 	return retval;
 }
 
-/* 
- * merges the strings in order to get a unique key identifying
- * this pair, using which the binary tree will be sorted.
- *
- * would be better to alternate characters from str1 and str2
- * instead of just concatenating the strings 
- */
 int MergeStrings (const char * str1, const char * str2)
 {
         int retval = 0;
@@ -192,7 +179,6 @@ AnnotatedEdge * newAnnotatedEdge (Edge * e, AnnotatedEdge * next = NULL)
 	return retval;
 }
 
-// Returns 0 if equal names
 bool CompareNodes (Node * a, Node * b)
 {
 	assert (a->name != NULL);
@@ -200,17 +186,12 @@ bool CompareNodes (Node * a, Node * b)
 	return strcmp (a->name, b->name);
 }
 
-// Returns 0 if equal
 bool CompareEdges (Edge * a, AnnotatedEdge * b)
 {
 	return (CompareNodes (a->from, b->from) 
 			|| CompareNodes (a->to, b->to));
 }
 
-/* 
- * Looks for the AnnotatedEdge in the tree corresponding
- * to the Edge provided 
- */
 AnnotatedEdge * GetEdgeFromTree(BinaryTree * root, Edge * edge)
 {
         AnnotatedEdge * temp;
@@ -226,11 +207,7 @@ AnnotatedEdge * GetEdgeFromTree(BinaryTree * root, Edge * edge)
         }
         return NULL;
 }
-
-/*
- * convert an Edge to an AnnotatedEdge and
- * insert it in the tree
- */     
+   
 void InsertEdgeInTree(BinaryTree * tree, Edge * edge)
 {
 #ifdef DEBUG
