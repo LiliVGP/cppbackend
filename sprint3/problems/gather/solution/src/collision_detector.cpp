@@ -4,7 +4,6 @@
 namespace collision_detector {
 
     CollectionResult TryCollectPoint(geom::Point2D a, geom::Point2D b, geom::Point2D c) {
-        // Проверим, что перемещение ненулевое.
         assert(b.x != a.x || b.y != a.y);
         const double u_x = c.x - a.x;
         const double u_y = c.y - a.y;
@@ -27,31 +26,26 @@ namespace collision_detector {
             geom::Point2D start = gatherer.start_pos;
             geom::Point2D end = gatherer.end_pos;
 
-            // Если собиратель не двигался, он ничего не подбирает
             if (start.x == end.x && start.y == end.y) {
                 continue;
             }
 
-            // Радиус собирателя + радиус предмета для проверки пересечения
             double gatherer_radius = gatherer.width;
 
             for (size_t i = 0; i < provider.ItemsCount(); ++i) {
                 Item item = provider.GetItem(i);
                 double item_radius = item.width;
 
-                // Вычисляем расстояние от предмета до пути собирателя и проекцию
                 CollectionResult result = TryCollectPoint(start, end, item.position);
 
                 double total_radius = gatherer_radius + item_radius;
 
-                // Проверяем: попадает ли проекция на отрезок и пересекаются ли круги
                 if (result.IsCollected(total_radius)) {
                     events.push_back({ i, g, result.sq_distance, result.proj_ratio });
                 }
             }
         }
 
-        // Сортируем события по времени (если время одинаковое, то по ID для детерминизма)
         std::sort(events.begin(), events.end(),
             [](const GatheringEvent& a, const GatheringEvent& b) {
                 if (a.time != b.time) {
