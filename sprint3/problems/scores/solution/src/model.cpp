@@ -165,7 +165,6 @@ const model::Map::Id* Game::GetMapIdByToken(const std::string& token) const noex
     return &it->second.first;
 }
 
-// Адаптер для collision_detector::ItemGathererProvider
 class CollisionProvider : public collision_detector::ItemGathererProvider {
 public:
     CollisionProvider(
@@ -187,7 +186,7 @@ public:
         const auto& obj = loot_[idx];
         return collision_detector::Item{
             {obj.pos.x, obj.pos.y},
-            0.0 // предметы имеют нулевую ширину
+            0.0
         };
     }
 
@@ -213,7 +212,7 @@ public:
         return collision_detector::Gatherer{
             {start_pos.x, start_pos.y},
             {end_pos.x, end_pos.y},
-            0.6 // ширина игрока
+            0.6
         };
     }
 
@@ -234,13 +233,10 @@ void Game::ProcessItemCollisions(const Map::Id& map_id, int time_delta_ms) {
     const auto& player_ids = map_players_[map_id];
     if (player_ids.empty()) return;
 
-    // Создаем провайдер для детектора коллизий
     CollisionProvider provider(player_ids, loot, this, time_delta_ms);
 
-    // Получаем события коллизий
     auto events = collision_detector::FindGatherEvents(provider);
 
-    // Обрабатываем события в хронологическом порядке
     std::vector<bool> item_picked(loot.size(), false);
 
     for (const auto& event : events) {
@@ -256,20 +252,16 @@ void Game::ProcessItemCollisions(const Map::Id& map_id, int time_delta_ms) {
         int bag_capacity = map->GetBagCapacity(GetDefaultBagCapacity());
 
         if (!player->IsBagFull(bag_capacity)) {
-            // Забираем предмет
             BagItem item;
             item.id = loot[i_idx].id;
             item.type = loot[i_idx].type;
             item.value = loot[i_idx].value;
             player->AddToBag(item);
 
-            // Удаляем предмет с карты
             item_picked[i_idx] = true;
         }
-        // Если рюкзак полон, предмет остаётся на месте
     }
 
-    // Удаляем подобранные предметы из списка
     std::vector<LostObject> new_loot;
     for (size_t i = 0; i < loot.size(); ++i) {
         if (!item_picked[i]) {
@@ -289,25 +281,22 @@ void Game::ProcessOfficeCollisions(const Map::Id& map_id, int time_delta_ms) {
     const auto& player_ids = map_players_[map_id];
     if (player_ids.empty()) return;
 
-    // Для каждого игрока проверяем, не оказался ли он рядом с офисом
     for (int player_id : player_ids) {
         auto* player = GetMutablePlayer(player_id);
         if (!player) continue;
 
         const auto& pos = player->GetPosition();
-        auto bag = player->GetBag(); // копия
+        auto bag = player->GetBag();
         if (bag.empty()) continue;
 
         bool delivered = false;
 
         for (const auto& office : offices) {
             const auto& office_pos = office.GetPosition();
-            // Проверяем расстояние до офиса
             double dx = pos.x - office_pos.x;
             double dy = pos.y - office_pos.y;
             double dist = std::sqrt(dx * dx + dy * dy);
 
-            // 0.5 (ширина офиса) / 2 + 0.6 (ширина игрока) / 2 = 0.55
             if (dist <= 0.55) {
                 delivered = true;
                 break;
@@ -315,7 +304,6 @@ void Game::ProcessOfficeCollisions(const Map::Id& map_id, int time_delta_ms) {
         }
 
         if (delivered) {
-            // Сдаём предметы и начисляем очки
             int score_gain = 0;
             for (const auto& item : bag) {
                 score_gain += item.value;
@@ -333,10 +321,8 @@ void Game::ProcessCollisions(int time_delta_ms) {
         const auto* map = FindMap(map_id);
         if (!map) continue;
 
-        // Сначала обрабатываем сбор предметов
         ProcessItemCollisions(map_id, time_delta_ms);
 
-        // Затем сдачу на базу
         ProcessOfficeCollisions(map_id, time_delta_ms);
     }
 }
@@ -344,7 +330,6 @@ void Game::ProcessCollisions(int time_delta_ms) {
 void Game::Tick(int time_delta_ms) {
     double time_seconds = time_delta_ms / 1000.0;
 
-    // 1. Перемещаем игроков
     for (auto& [player_id, player] : all_players_) {
         const auto& speed = player.GetSpeed();
 
@@ -430,7 +415,6 @@ void Game::Tick(int time_delta_ms) {
         }
     }
 
-    // 2. Генерируем лут
     if (loot_generator_) {
         for (auto& [map_id, player_ids] : map_players_) {
             if (player_ids.empty()) {
@@ -456,16 +440,13 @@ void Game::Tick(int time_delta_ms) {
             }
 
             for (unsigned i = 0; i < generated; ++i) {
-                // Pick a random road
                 std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
                 const Road& road = roads[road_dist(rng_)];
                 PlayerPosition pos = road.RandomPointOnRoad(rng_);
 
-                // Pick a random loot type
                 std::uniform_int_distribution<int> type_dist(0, static_cast<int>(map->GetLootTypeCount()) - 1);
                 int type = type_dist(rng_);
 
-                // Random value for loot (1-10)
                 std::uniform_int_distribution<int> value_dist(1, 10);
                 int value = value_dist(rng_);
 
@@ -479,7 +460,6 @@ void Game::Tick(int time_delta_ms) {
         }
     }
 
-    // 3. Обрабатываем коллизии
     ProcessCollisions(time_delta_ms);
 }
 

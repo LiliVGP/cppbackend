@@ -80,12 +80,10 @@ namespace json_loader {
                 map.SetDogSpeed(map_obj.at("dogSpeed").as_double());
             }
 
-            // Load bag capacity
             if (map_obj.contains("bagCapacity")) {
                 map.SetBagCapacity(map_obj.at("bagCapacity").as_int64());
             }
 
-            // Store loot types JSON in extra_data (outside model)
             if (map_obj.contains("lootTypes")) {
                 const auto& loot_types = map_obj.at("lootTypes").as_array();
                 extra.SetLootTypes(json::value(loot_types));
@@ -119,12 +117,10 @@ namespace json_loader {
             game.SetDefaultDogSpeed(root.at("defaultDogSpeed").as_double());
         }
 
-        // Load default bag capacity
         if (root.contains("defaultBagCapacity")) {
             game.SetDefaultBagCapacity(root.at("defaultBagCapacity").as_int64());
         }
 
-        // Load loot generator config
         if (root.contains("lootGeneratorConfig")) {
             const auto& lg = root.at("lootGeneratorConfig").as_object();
             double period = lg.at("period").as_double();
