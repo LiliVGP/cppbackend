@@ -81,9 +81,8 @@ BOOST_AUTO_TEST_CASE(selecting_same_channel_does_nothing) {
     BOOST_TEST(tv.GetChannel() == 5);
     tv.SelectChannel(5);
     BOOST_TEST(tv.GetChannel() == 5);
-    // Проверяем, что last_channel не изменился
     tv.SelectLastViewedChannel();
-    BOOST_TEST(tv.GetChannel() == 5); // нет предыдущего, остаётся на 5
+    BOOST_TEST(tv.GetChannel() == 5);
 }
 
 BOOST_AUTO_TEST_CASE(select_last_viewed_channel_switches_between_two_channels) {
@@ -115,7 +114,7 @@ BOOST_AUTO_TEST_CASE(turn_off_after_channel_change_remembers_last_channel) {
     tv.SelectChannel(10);
     tv.TurnOff();
     tv.TurnOn();
-    BOOST_TEST(tv.GetChannel() == 1); // при включении сбрасывается на 1
+    BOOST_TEST(tv.GetChannel() == 1);
 
     tv.SelectChannel(10);
     tv.SelectChannel(5);
@@ -127,8 +126,6 @@ BOOST_AUTO_TEST_CASE(turn_off_after_channel_change_remembers_last_channel) {
     BOOST_TEST(tv.GetChannel() == 1);
     tv.SelectChannel(10);
     BOOST_TEST(tv.GetChannel() == 10);
-    // last_channel не сохраняется после выключения?
-    // В текущей реализации last_channel сбрасывается при выключении
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -80,7 +80,6 @@ private:
             return true;
         }
 
-        // Проверяем, что после канала нет лишних аргументов
         if (std::string extra; input >> extra) {
             output << "Error: the " << SELECT_CHANNEL_COMMAND
                 << " command requires exactly one argument"sv << std::endl;

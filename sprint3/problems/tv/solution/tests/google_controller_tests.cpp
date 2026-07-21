@@ -103,8 +103,6 @@ TEST_F(ControllerWithTurnedOffTV, OnSelectPreviousChannelWithArgsPrintsError) {
     EXPECT_FALSE(tv_.IsTurnedOn());
 }
 
-//-----------------------------------------------------------------------------------
-
 class ControllerWithTurnedOnTV : public ControllerWithTurnedOffTV {
 protected:
     void SetUp() override {
