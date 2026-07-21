@@ -26,12 +26,14 @@ add_executable(game_server
     src/loot_generator.cpp
     src/extra_data.h
     src/collision_detector.h
+    src/collision_detector.cpp
+    src/geom.h
 )
 
 target_include_directories(game_server PRIVATE CONAN_PKG::boost)
 target_link_libraries(game_server PRIVATE CONAN_PKG::boost)
 
-# Tests
+# Тесты
 add_executable(game_server_tests
     src/model.h
     src/model.cpp
@@ -39,6 +41,8 @@ add_executable(game_server_tests
     src/loot_generator.h
     src/loot_generator.cpp
     src/collision_detector.h
+    src/collision_detector.cpp
+    src/geom.h
     tests/loot_generator_tests.cpp
 )
 
