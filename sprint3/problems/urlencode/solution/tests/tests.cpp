@@ -63,7 +63,7 @@ TEST(UrlEncodeTestSuite, ControlCharsAreEncoded) {
 TEST(UrlEncodeTestSuite, HighAsciiCharsAreEncoded) {
     EXPECT_EQ(UrlEncode("\x80"sv), "%80"s);
     EXPECT_EQ(UrlEncode("\xFF"sv), "%FF"s);
-    EXPECT_EQ(UrlEncode("Hello\xA9World"sv), "Hello%A9World"s); // © symbol
+    EXPECT_EQ(UrlEncode("Hello\xA9World"sv), "Hello%A9World"s);
 }
 
 TEST(UrlEncodeTestSuite, MixedCharacters) {
@@ -71,11 +71,10 @@ TEST(UrlEncodeTestSuite, MixedCharacters) {
     EXPECT_EQ(UrlEncode("abc*def"sv), "abc%2Adef"s);
     EXPECT_EQ(UrlEncode("hello world 123"sv), "hello+world+123"s);
     EXPECT_EQ(UrlEncode("foo@bar.com"sv), "foo%40bar.com"s);
-    EXPECT_EQ(UrlEncode("тест"sv), "%D1%82%D0%B5%D1%81%D1%82"s); // UTF-8 test
+    EXPECT_EQ(UrlEncode("тест"sv), "%D1%82%D0%B5%D1%81%D1%82"s);
 }
 
 TEST(UrlEncodeTestSuite, PercentEncodingIsUpperCase) {
-    // Проверяем, что кодирование использует заглавные буквы в hex
     EXPECT_EQ(UrlEncode("!"sv), "%21"s);
     EXPECT_EQ(UrlEncode("#"sv), "%23"s);
     EXPECT_EQ(UrlEncode("$"sv), "%24"s);
