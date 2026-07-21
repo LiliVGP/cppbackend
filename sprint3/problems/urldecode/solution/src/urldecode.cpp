@@ -15,12 +15,10 @@ std::string UrlDecode(std::string_view str) {
             result.push_back(' ');
         }
         else if (c == '%') {
-            // Проверяем, что есть ещё два символа
             if (i + 2 >= str.size()) {
                 throw std::invalid_argument("Incomplete percent-encoding");
             }
 
-            // Берём два символа после %
             char hex[3] = { str[i + 1], str[i + 2], '\0' };
             unsigned int value;
             auto [ptr, ec] = std::from_chars(hex, hex + 2, value, 16);
@@ -30,7 +28,7 @@ std::string UrlDecode(std::string_view str) {
             }
 
             result.push_back(static_cast<char>(value));
-            i += 2; // пропускаем два символа
+            i += 2;
         }
         else {
             result.push_back(c);
