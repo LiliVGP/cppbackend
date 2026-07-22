@@ -108,34 +108,38 @@ namespace json_loader {
         std::stringstream buffer;
         buffer << file.rdbuf();
 
-        json::value json_val = json::parse(buffer.str());
-        json::object& root = json_val.as_object();
+    try {
+            json::value json_val = json::parse(buffer.str());
+        
+            json::object& root = json_val.as_object();
 
-        model::Game game;
+            model::Game game;
 
-        if (root.contains("defaultDogSpeed")) {
-            game.SetDefaultDogSpeed(root.at("defaultDogSpeed").as_double());
-        }
+            if (root.contains("defaultDogSpeed")) {
+                game.SetDefaultDogSpeed(root.at("defaultDogSpeed").as_double());
+            }
 
-        if (root.contains("defaultBagCapacity")) {
-            game.SetDefaultBagCapacity(root.at("defaultBagCapacity").as_int64());
-        }
+            if (root.contains("defaultBagCapacity")) {
+                game.SetDefaultBagCapacity(root.at("defaultBagCapacity").as_int64());
+            }
 
-        if (root.contains("lootGeneratorConfig")) {
-            const auto& lg = root.at("lootGeneratorConfig").as_object();
-            double period = lg.at("period").as_double();
-            double probability = lg.at("probability").as_double();
-            game.SetLootGeneratorConfig(period, probability);
-        }
+            if (root.contains("lootGeneratorConfig")) {
+                const auto& lg = root.at("lootGeneratorConfig").as_object();
+                double period = lg.at("period").as_double();
+                double probability = lg.at("probability").as_double();
+                game.SetLootGeneratorConfig(period, probability);
+            }
 
-        for (const json::value& map_val : root.at("maps").as_array()) {
-            const json::object& map_obj = map_val.as_object();
-            extra_data::MapExtraData map_extra;
-            game.AddMap(detail::LoadMap(map_obj, map_extra));
-            extra_data.SetMapExtraData(game.GetMaps().back().GetId(), std::move(map_extra));
-        }
-
-        return game;
+            for (const json::value& map_val : root.at("maps").as_array()) {
+                const json::object& map_obj = map_val.as_object();
+                extra_data::MapExtraData map_extra;
+                game.AddMap(detail::LoadMap(map_obj, map_extra));
+                extra_data.SetMapExtraData(game.GetMaps().back().GetId(), std::move(map_extra));
+            }
+            return game;  
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Failed to parse JSON config: " + std::string(e.what()));
+            }
     }
 
 }  // namespace json_loader
