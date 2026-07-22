@@ -4,7 +4,9 @@
 namespace collision_detector {
 
     CollectionResult TryCollectPoint(geom::Point2D a, geom::Point2D b, geom::Point2D c) {
-        assert(b.x != a.x || b.y != a.y);
+        if (b.x == a.x && b.y == a.y) {
+            return CollectionResult{std::numeric_limits<double>::max(), 0.0};
+        }
         const double u_x = c.x - a.x;
         const double u_y = c.y - a.y;
         const double v_x = b.x - a.x;
