@@ -14,6 +14,10 @@ using namespace std::literals;
 
 namespace {
 constexpr size_t TOKEN_SIZE = 32;
+constexpr double MILLISECONDS_IN_SECOND = 1000.0;
+constexpr double PLAYER_WIDTH = 0.6;
+constexpr double OFFICE_WIDTH = 0.5;
+constexpr double COLLECTION_DISTANCE = (OFFICE_WIDTH / 2) + (PLAYER_WIDTH / 2);
 }
 
 std::string DirectionToString(PlayerDirection dir) {
@@ -120,10 +124,7 @@ const model::Game::Players& Game::GetPlayersByToken(const std::string& token) co
 
 const Player* Game::GetPlayer(int player_id) const {
     auto it = all_players_.find(player_id);
-    if (it == all_players_.end()) {
-        return nullptr;
-    }
-    return &it->second;
+    return it != all_players_.end() ? &it->second : nullptr;
 }
 
 double Game::GetDogSpeed(const Map::Id& map_id) const {
@@ -205,14 +206,14 @@ public:
         PlayerPosition start_pos = player->GetPosition();
         PlayerPosition end_pos = start_pos;
         const auto& speed = player->GetSpeed();
-        double time_seconds = time_delta_ms_ / 1000.0;
+        double time_seconds = time_delta_ms_ / MILLISECONDS_IN_SECOND;
         end_pos.x += speed.dx * time_seconds;
         end_pos.y += speed.dy * time_seconds;
 
         return collision_detector::Gatherer{
             {start_pos.x, start_pos.y},
             {end_pos.x, end_pos.y},
-            0.6
+            PLAYER_WIDTH
         };
     }
 
@@ -297,7 +298,7 @@ void Game::ProcessOfficeCollisions(const Map::Id& map_id, int time_delta_ms) {
             double dy = pos.y - office_pos.y;
             double dist = std::sqrt(dx * dx + dy * dy);
 
-            if (dist <= 0.55) {
+            if (dist <= COLLECTION_DISTANCE) {
                 delivered = true;
                 break;
             }
@@ -328,7 +329,7 @@ void Game::ProcessCollisions(int time_delta_ms) {
 }
 
 void Game::Tick(int time_delta_ms) {
-    double time_seconds = time_delta_ms / 1000.0;
+    double time_seconds = time_delta_ms / MILLISECONDS_IN_SECOND;
 
     for (auto& [player_id, player] : all_players_) {
         const auto& speed = player.GetSpeed();
