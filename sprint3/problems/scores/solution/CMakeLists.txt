@@ -12,7 +12,6 @@ find_package(Threads REQUIRED)
 add_executable(game_server
     src/main.cpp
     src/http_server.h
-    src/http_server.cpp
     src/sdk.h
     src/model.h
     src/model.cpp
@@ -21,7 +20,6 @@ add_executable(game_server
     src/json_loader.h
     src/json_loader.cpp
     src/request_handler.h
-    src/request_handler.cpp
     src/loot_generator.h
     src/loot_generator.cpp
     src/extra_data.h
