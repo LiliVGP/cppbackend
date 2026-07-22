@@ -1,5 +1,6 @@
 #include "collision_detector.h"
 #include <cassert>
+#include <limits>
 
 namespace collision_detector {
 
