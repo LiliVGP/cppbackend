@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <iostream>
 #include <chrono>
+#include <map>
 
 #include "model.h"
 
@@ -58,7 +59,7 @@ void serialize(Archive& ar, Dog::Id& id, [[maybe_unused]] const unsigned version
     id = Dog::Id{val};
 }
 
-// Интерфейс наблюдателя (должен быть объявлен до StateManager)
+// Интерфейс наблюдателя
 class ApplicationObserver {
 public:
     virtual ~ApplicationObserver() = default;
