@@ -67,6 +67,13 @@ public:
     virtual void OnSave() = 0;
 };
 
+}  // namespace model
+
+// Отдельное пространство имен для сериализации
+namespace serialization {
+
+using namespace model;
+
 // Сериализация Dog через DogRepr
 class DogRepr {
 public:
@@ -240,7 +247,11 @@ private:
     std::chrono::milliseconds last_save_time_{0};
 };
 
-// Класс Application с сигналами
+}  // namespace serialization
+
+// Класс Application с сигналами (в пространстве имен model)
+namespace model {
+
 class Application {
 public:
     using TickSignal = boost::signals2::signal<void(std::chrono::milliseconds delta)>;

@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
         model::Application app;
         
         // Инициализация менеджера состояния
-        model::StateManager state_manager(app.GetGameModel(), state_file, save_period);
+        serialization::StateManager state_manager(app.GetGameModel(), state_file, save_period);
         
         // Подключаем менеджер состояния к сигналам приложения
         boost::signals2::connection tick_connection = app.DoOnTick([&state_manager](std::chrono::milliseconds delta) {
