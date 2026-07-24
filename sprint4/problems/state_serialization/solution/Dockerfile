@@ -23,7 +23,6 @@ FROM ubuntu:22.04 as run
 
 RUN groupadd -r www && useradd -r -g www www
 
-COPY --from=build /app/build/bin/game_server /app/
 COPY ./data /app/data
 COPY ./static /app/static
 RUN chmod -R a+r /app/data /app/static
