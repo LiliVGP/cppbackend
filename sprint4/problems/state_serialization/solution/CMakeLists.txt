@@ -17,6 +17,7 @@ add_library(game_model STATIC
 	src/tagged.h
 	src/main.cpp
 	src/application.h
+	src/sdk.h
 )
 
 target_link_libraries(game_model PUBLIC CONAN_PKG::boost Threads::Threads)
