@@ -26,6 +26,11 @@ add_executable(game_server
 	src/http_server.h
 )
 
+
+target_include_directories(game_server PRIVATE CONAN_PKG::boost)
+target_link_libraries(game_server PRIVATE CONAN_PKG::boost)
+
+
 add_executable(game_server_tests
 	tests/state-serialization-tests.cpp
 )
