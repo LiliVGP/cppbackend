@@ -21,6 +21,10 @@ add_library(game_model STATIC
 
 target_link_libraries(game_model PUBLIC CONAN_PKG::boost Threads::Threads)
 
+add_executable(game_server
+	src/http_server.h
+)
+
 add_executable(game_server_tests
 	tests/state-serialization-tests.cpp
 )
