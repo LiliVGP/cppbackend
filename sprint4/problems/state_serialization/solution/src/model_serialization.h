@@ -58,6 +58,14 @@ void serialize(Archive& ar, Dog::Id& id, [[maybe_unused]] const unsigned version
     id = Dog::Id{val};
 }
 
+// Интерфейс наблюдателя (должен быть объявлен до StateManager)
+class ApplicationObserver {
+public:
+    virtual ~ApplicationObserver() = default;
+    virtual void OnTick(std::chrono::milliseconds delta) = 0;
+    virtual void OnSave() = 0;
+};
+
 // Сериализация Dog через DogRepr
 class DogRepr {
 public:
@@ -125,7 +133,10 @@ struct GameState {
             auto dog = std::make_shared<Dog>(repr.Restore());
             model.AddDog(dog);
         }
-        // Загрузите токены и другие объекты
+        // Загрузите токены
+        for (const auto& [token, player_id] : tokens) {
+            model.AddToken(token, player_id);
+        }
     }
 
     void SaveFromModel(const GameModel& model) {
@@ -133,7 +144,7 @@ struct GameState {
         for (const auto& dog : model.GetDogs()) {
             dog_reprs.emplace_back(*dog);
         }
-        // Сохраните токены и другие объекты
+        tokens = model.GetTokens();
     }
 };
 
@@ -201,6 +212,9 @@ public:
             file.close();
             
             // Атомарное переименование
+            if (std::filesystem::exists(state_file_)) {
+                std::filesystem::remove(state_file_);
+            }
             std::filesystem::rename(temp_file, state_file_);
             std::cout << "State saved to " << state_file_ << std::endl;
         } catch (const std::exception& e) {
