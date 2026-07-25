@@ -29,6 +29,11 @@ namespace app {
         model::Map::Id map_id;
     };
 
+    // Предварительное объявление для сериализации
+    namespace serialization {
+        class GameStateRepr;
+    }
+
     // Класс приложения, управляющий игровым состоянием
     class Application {
     public:

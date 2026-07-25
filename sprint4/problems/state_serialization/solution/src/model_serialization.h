@@ -6,7 +6,11 @@
 
 #include "model.h"
 #include "geom.h"
-#include "application.h" // для PlayerId, Token и др.
+
+namespace app {
+    using PlayerId = util::Tagged<uint32_t, PlayerId>;
+    using Token = std::string;
+} // namespace app
 
 namespace geom {
 
@@ -30,13 +34,14 @@ namespace model {
     void serialize(Archive& ar, FoundObject& obj, [[maybe_unused]] const unsigned version) {
         ar&* obj.id;
         ar& obj.type;
+        ar& obj.position;
     }
 
 } // namespace model
 
 namespace serialization {
 
-    // Репрезентация собаки (уже есть, дополним)
+    // Репрезентация собаки
     class DogRepr {
     public:
         DogRepr() = default;
@@ -133,15 +138,16 @@ namespace serialization {
     };
 
     // Полное состояние игры
-    struct GameStateRepr {
-        std::vector<MapStateRepr> maps;
-        std::vector<PlayerRepr> players;
-
+    class GameStateRepr {
+    public:
         template <typename Archive>
         void serialize(Archive& ar, [[maybe_unused]] const unsigned version) {
             ar& maps;
             ar& players;
         }
+
+        std::vector<MapStateRepr> maps;
+        std::vector<PlayerRepr> players;
     };
 
 } // namespace serialization

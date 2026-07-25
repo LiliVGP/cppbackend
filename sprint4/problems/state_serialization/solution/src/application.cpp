@@ -37,7 +37,6 @@ namespace app {
         static uint32_t next_dog_id = 1;
         model::Dog::Id dog_id{ next_dog_id++ };
         auto& map_state = GetMapState(map_id);
-        // Используем вместимость сумки по умолчанию (можно брать из конфига карты)
         size_t bag_capacity = 3; // например
         map_state.dogs.emplace_back(dog_id, name, pos, bag_capacity);
         return dog_id;
@@ -85,8 +84,8 @@ namespace app {
         return result;
     }
 
-    Application::Token Application::CreateSession(const model::Dog::Id& dog_id, const model::Map::Id& map_id) {
-        // Генерируем случайный токен (упрощённо)
+    Token Application::CreateSession(const model::Dog::Id& dog_id, const model::Map::Id& map_id) {
+        // Генерируем случайный токен
         static std::random_device rd;
         static std::mt19937 gen(rd());
         static std::uniform_int_distribution<> dis(0, 15);
@@ -103,13 +102,13 @@ namespace app {
         return token;
     }
 
-    const Application::Session* Application::FindSession(const Token& token) const {
+    const Session* Application::FindSession(const Token& token) const {
         auto it = std::find_if(sessions_.begin(), sessions_.end(),
             [&token](const Session& s) { return s.token == token; });
         return it != sessions_.end() ? &*it : nullptr;
     }
 
-    Application::Session* Application::FindSession(const Token& token) {
+    Session* Application::FindSession(const Token& token) {
         auto it = std::find_if(sessions_.begin(), sessions_.end(),
             [&token](const Session& s) { return s.token == token; });
         return it != sessions_.end() ? &*it : nullptr;
@@ -159,11 +158,7 @@ namespace app {
                 serialization::LootRepr loot_repr;
                 loot_repr.id = loot.id;
                 loot_repr.type = loot.type;
-                loot_repr.position = loot.position; // если есть поле position
-                // У нас в FoundObject нет позиции, поэтому добавим её в репрезентацию
-                // В реальном коде позиция предмета должна храниться в модели
-                // Для простоты будем хранить позицию отдельно в MapState::loot_positions
-                // Здесь предполагаем, что LootRepr содержит позицию
+                loot_repr.position = loot.position;
                 map_repr.loot_items.push_back(loot_repr);
             }
 
@@ -190,11 +185,8 @@ namespace app {
 
         // Восстанавливаем карты
         for (const auto& map_repr : repr.maps) {
-            // Находим статическую информацию о карте (она должна быть загружена из конфига)
-            // В реальном проекте карты загружаются при старте и хранятся отдельно
-            // Здесь предполагаем, что у нас есть словарь всех карт по ID
-            // Для простоты создадим пустую карту (в реальности нужно брать из загруженных)
-            model::Map map(map_repr.map_id, "Restored Map"); // упрощённо
+            // Создаем карту с ID
+            model::Map map(map_repr.map_id, "Restored Map");
             MapState map_state;
             map_state.map = std::move(map);
 
@@ -209,8 +201,7 @@ namespace app {
                 model::FoundObject loot;
                 loot.id = loot_repr.id;
                 loot.type = loot_repr.type;
-                // Позицию пока не восстанавливаем, так как в модели её нет
-                // В реальности нужно добавить позицию в FoundObject
+                loot.position = loot_repr.position;
                 map_state.loot.push_back(loot);
             }
 

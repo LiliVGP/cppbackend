@@ -1,66 +1,60 @@
 #pragma once
 #include <compare>
+#include <functional>
+#include <utility>
 
 namespace util {
 
-/**
- * Вспомогательный шаблонный класс "Маркированный тип".
- * С его помощью можно описать строгий тип на основе другого типа.
- * Пример:
- *
- *  struct AddressTag{}; // метка типа для строки, хранящей адрес
- *  using Address = util::Tagged<std::string, AddressTag>;
- *
- *  struct NameTag{}; // метка типа для строки, хранящей имя
- *  using Name = util::Tagged<std::string, NameTag>;
- *
- *  struct Person {
- *      Name name;
- *      Address address;
- *  };
- *
- *  Name name{"Harry Potter"s};
- *  Address address{"4 Privet Drive, Little Whinging, Surrey, England"s};
- *
- * Person p1{name, address}; // OK
- * Person p2{address, name}; // Ошибка, Address и Name - разные типы
- */
-template <typename Value, typename Tag>
-class Tagged {
-public:
-    using ValueType = Value;
-    using TagType = Tag;
+    /**
+     * Вспомогательный шаблонный класс "Маркированный тип".
+     */
+    template <typename Value, typename Tag>
+    class Tagged {
+    public:
+        using ValueType = Value;
+        using TagType = Tag;
 
-    explicit Tagged(Value&& v)
-        : value_(std::move(v)) {
-    }
-    explicit Tagged(const Value& v)
-        : value_(v) {
-    }
+        explicit Tagged(Value&& v)
+            : value_(std::move(v)) {
+        }
+        explicit Tagged(const Value& v)
+            : value_(v) {
+        }
 
-    const Value& operator*() const {
-        return value_;
-    }
+        // Добавляем конструктор по умолчанию
+        Tagged() = default;
 
-    Value& operator*() {
-        return value_;
-    }
+        const Value& operator*() const {
+            return value_;
+        }
 
-    // Так в C++20 можно объявить оператор сравнения Tagged-типов
-    // Будет просто вызван соответствующий оператор для поля value_
-    auto operator<=>(const Tagged<Value, Tag>&) const = default;
+        Value& operator*() {
+            return value_;
+        }
 
-private:
-    Value value_;
-};
+        // Так в C++20 можно объявить оператор сравнения Tagged-типов
+        auto operator<=>(const Tagged<Value, Tag>&) const = default;
 
-// Хешер для Tagged-типа, чтобы Tagged-объекты можно было хранить в unordered-контейнерах
-template <typename TaggedValue>
-struct TaggedHasher {
-    size_t operator()(const TaggedValue& value) const {
-        // Возвращает хеш значения, хранящегося внутри value
-        return std::hash<typename TaggedValue::ValueType>{}(*value);
-    }
-};
+    private:
+        Value value_{};
+    };
+
+    // Хешер для Tagged-типа
+    template <typename TaggedValue>
+    struct TaggedHasher {
+        size_t operator()(const TaggedValue& value) const {
+            return std::hash<typename TaggedValue::ValueType>{}(*value);
+        }
+    };
 
 }  // namespace util
+
+// Специализация std::hash для Tagged-типов
+namespace std {
+    template <typename Value, typename Tag>
+    struct hash<util::Tagged<Value, Tag>> {
+        size_t operator()(const util::Tagged<Value, Tag>& value) const {
+            return hash<Value>{}(*value);
+        }
+    };
+}  // namespace std

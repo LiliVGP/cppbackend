@@ -49,6 +49,7 @@ namespace model {
         using Id = util::Tagged<uint32_t, Dog>;
         using BagContent = std::vector<FoundObject>;
 
+        Dog() = default;
         Dog(Id id, std::string name, geom::Point2D pos, size_t bag_cap)
             : id_(std::move(id))
             , name_(std::move(name))
@@ -126,14 +127,14 @@ namespace model {
         }
 
     private:
-        Id id_;
+        Id id_{ 0u };
         std::string name_;
         geom::Point2D position_;
         geom::Vec2D speed_;
         Direction direction_{ Direction::NORTH };
         std::vector<FoundObject> bag_;
-        size_t bag_cap_;
-        Score score_{};
+        size_t bag_cap_{ 0 };
+        Score score_{ 0 };
     };
 
     using DogPtr = std::shared_ptr<Dog>;
@@ -143,6 +144,7 @@ namespace model {
     public:
         using Id = util::Tagged<std::string, Map>;
 
+        Map() = default;
         Map(Id id, std::string name)
             : id_(std::move(id))
             , name_(std::move(name)) {
@@ -157,7 +159,7 @@ namespace model {
         }
 
     private:
-        Id id_;
+        Id id_{ "" };
         std::string name_;
     };
 
