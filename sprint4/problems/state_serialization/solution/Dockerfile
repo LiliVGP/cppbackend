@@ -1,22 +1,21 @@
 FROM gcc:11.3 as build
 
 RUN apt update && \
-    apt install -y \
-      python3-pip \
+    apt install -y --no-install-recommends \
       cmake \
-      libboost-all-dev \
+      make \
+      python3 \
+      python3-pip \
     && \
     pip3 install conan==1.*
 
 COPY conanfile.txt /app/
-RUN mkdir /app/build && cd /app/build && \
-    conan install .. --build=missing -s compiler.libcxx=libstdc++11
-
 COPY ./src /app/src
 COPY CMakeLists.txt /app/
 COPY ./tests /app/tests
 
-RUN cd /app/build && \
+RUN mkdir /app/build && cd /app/build && \
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11 && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
