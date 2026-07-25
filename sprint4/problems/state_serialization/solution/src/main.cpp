@@ -1,168 +1,142 @@
+#include "sdk.h"
+
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <iostream>
-#include <chrono>
 #include <thread>
-#include <vector>
+#include <string>
+#include <string_view>
 #include <filesystem>
-#include <csignal>
-#include <boost/asio.hpp>
-#include <boost/program_options.hpp>
+#include <optional>
 
-#include "application.h"
 #include "model.h"
-#include "state_serializer.h"
+#include "state_serializer.h"  // Добавляем сериализатор
 
+using namespace std::literals;
 namespace net = boost::asio;
 namespace sys = boost::system;
-namespace po = boost::program_options;
 
-// Глобальные переменные для доступа к сериализатору
-std::unique_ptr<infra::StateSerializer> g_serializer;
-net::io_context* g_ioc = nullptr;
+namespace {
 
-void signal_handler(int signal) {
-    std::cout << "Received signal " << signal << ", shutting down..." << std::endl;
-    if (g_serializer) {
-        std::cout << "Saving state before exit..." << std::endl;
-        g_serializer->SaveNow();
+    template <typename Fn>
+    void RunWorkers(unsigned n, const Fn& fn) {
+        n = std::max(1u, n);
+        std::vector<std::jthread> workers;
+        workers.reserve(n - 1);
+        while (--n) {
+            workers.emplace_back(fn);
+        }
+        fn();
     }
-    if (g_ioc) {
-        g_ioc->stop();
-    }
-}
 
-int main(int argc, char* argv[]) {
+    struct Args {
+        std::string config_file;
+        std::string www_root;
+        std::string state_file;
+        std::optional<int> save_state_period_ms;
+    };
+
+    Args ParseArgs(int argc, const char* argv[]) {
+        Args args;
+        for (int i = 1; i < argc; ++i) {
+            std::string_view arg = argv[i];
+            if (arg == "--config-file"sv && i + 1 < argc) {
+                args.config_file = argv[++i];
+            }
+            else if (arg == "--www-root"sv && i + 1 < argc) {
+                args.www_root = argv[++i];
+            }
+            else if (arg == "--state-file"sv && i + 1 < argc) {
+                args.state_file = argv[++i];
+            }
+            else if (arg == "--save-state-period"sv && i + 1 < argc) {
+                args.save_state_period_ms = std::stoi(argv[++i]);
+            }
+        }
+        if (args.config_file.empty()) {
+            throw std::invalid_argument("Usage: game_server --config-file <config> --www-root <static-dir> [--state-file <file>] [--save-state-period <ms>]"s);
+        }
+        if (args.www_root.empty()) {
+            args.www_root = ".";
+        }
+        return args;
+    }
+
+}  // namespace
+
+int main(int argc, const char* argv[]) {
     try {
-        // Парсинг аргументов командной строки
-        po::options_description desc("Allowed options");
-        desc.add_options()
-            ("help,h", "produce help message")
-            ("config-file,c", po::value<std::string>(), "path to config file")
-            ("www-root,w", po::value<std::string>(), "path to static files directory")
-            ("state-file", po::value<std::string>(), "path to state file")
-            ("save-state-period", po::value<int>(), "period in milliseconds for auto-save")
-            ("tick-period", po::value<int>(), "period in milliseconds for auto-tick");
+        Args args = ParseArgs(argc, argv);
 
-        po::variables_map vm;
-        po::store(po::parse_command_line(argc, argv, desc), vm);
-        po::notify(vm);
+        extra_data::GameExtraData extra_data;
 
-        if (vm.count("help")) {
-            std::cout << desc << std::endl;
-            return 0;
-        }
+        model::Game game = json_loader::LoadGame(args.config_file, extra_data);
 
-        // Проверка обязательных параметров
-        if (!vm.count("config-file")) {
-            std::cerr << "Error: --config-file is required" << std::endl;
-            return 1;
-        }
-        if (!vm.count("www-root")) {
-            std::cerr << "Error: --www-root is required" << std::endl;
-            return 1;
-        }
-
-        std::string config_file = vm["config-file"].as<std::string>();
-        std::string www_root = vm["www-root"].as<std::string>();
-
-        // Проверяем существование файла конфигурации
-        if (!std::filesystem::exists(config_file)) {
-            std::cerr << "Error: config file not found: " << config_file << std::endl;
-            return 1;
-        }
-
-        // Проверяем существование директории www-root
-        if (!std::filesystem::exists(www_root)) {
-            std::cerr << "Error: www-root directory not found: " << www_root << std::endl;
-            return 1;
-        }
-
-        // Загрузка карт из конфига (здесь упрощённо)
-        std::vector<model::Map> maps;
-        // В реальном проекте нужно загружать из JSON
-        maps.emplace_back(model::Map::Id{ "map1" }, "Map 1");
-        maps.emplace_back(model::Map::Id{ "town" }, "Town");
-        maps.emplace_back(model::Map::Id{ "map3" }, "Map 3");
-
-        // Создание приложения
-        app::Application app(std::move(maps));
-
-        // Настройка сериализатора, если указан файл состояния
-        std::string state_file_path;
-        std::optional<app::Milliseconds> save_period;
-
-        if (vm.count("state-file")) {
-            state_file_path = vm["state-file"].as<std::string>();
-            if (vm.count("save-state-period")) {
-                int period_ms = vm["save-state-period"].as<int>();
-                if (period_ms > 0) {
-                    save_period = app::Milliseconds(period_ms);
-                }
+        // Создаём сериализатор, если указан state-file
+        std::unique_ptr<infra::StateSerializer> serializer;
+        if (!args.state_file.empty()) {
+            std::optional<app::Milliseconds> save_period;
+            if (args.save_state_period_ms.has_value() && args.save_state_period_ms.value() > 0) {
+                save_period = app::Milliseconds(args.save_state_period_ms.value());
             }
 
             // Создаём сериализатор
-            g_serializer = std::make_unique<infra::StateSerializer>(
-                app, std::filesystem::path(state_file_path), save_period);
-
+            serializer = std::make_unique<infra::StateSerializer>(
+                game,                  // игра
+                std::filesystem::path(args.state_file),
+                save_period
+            );
             // Запускаем автосохранение
-            g_serializer->Start();
-        }
-
-        // Установка обработчиков сигналов
-        std::signal(SIGINT, signal_handler);
-        std::signal(SIGTERM, signal_handler);
-
-        // Запуск сетевого сервера
-        net::io_context ioc(4); // 4 потока
-        g_ioc = &ioc;
-
-        // Создаём HTTP-сервер
-        // В реальном проекте здесь должен быть ваш HTTP-сервер
-        // Например, с использованием Boost.Beast или вашего фреймворка
-
-        std::cout << "Starting server on port 8080..." << std::endl;
-        std::cout << "Config file: " << config_file << std::endl;
-        std::cout << "WWW root: " << www_root << std::endl;
-        if (!state_file_path.empty()) {
-            std::cout << "State file: " << state_file_path << std::endl;
-            if (save_period) {
+            serializer->Start();
+            std::cout << "State serialization enabled, file: " << args.state_file << std::endl;
+            if (save_period.has_value()) {
                 std::cout << "Save period: " << save_period->count() << " ms" << std::endl;
             }
         }
 
-        // Запускаем обработку сигналов
+        const unsigned num_threads = std::thread::hardware_concurrency();
+        net::io_context ioc(num_threads);
+
         net::signal_set signals(ioc, SIGINT, SIGTERM);
-        signals.async_wait([&](const sys::error_code& ec, int signal) {
+        signals.async_wait([&ioc, &serializer](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
                 std::cout << "Signal received, stopping..." << std::endl;
+                // Сохраняем состояние перед остановкой
+                if (serializer) {
+                    std::cout << "Saving state before exit..." << std::endl;
+                    serializer->SaveNow();
+                }
                 ioc.stop();
             }
             });
 
-        // Запускаем несколько потоков для обработки запросов
-        std::vector<std::thread> threads;
-        unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
-        for (unsigned i = 0; i < num_threads; ++i) {
-            threads.emplace_back([&ioc]() {
-                ioc.run();
-                });
-        }
+        http_handler::RequestHandler handler{ game, extra_data, args.www_root };
 
-        // Ждём завершения всех потоков
-        for (auto& t : threads) {
-            t.join();
-        }
+        const auto address = net::ip::make_address("0.0.0.0");
+        constexpr net::ip::port_type port = 8080;
 
-        // После остановки io_context сохраняем состояние
-        if (g_serializer) {
+        http_server::ServeHttp(ioc, { address, port }, [&handler](auto&& req, auto&& send) {
+            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+            });
+
+        std::cout << "Server has started..."sv << std::endl;
+
+        RunWorkers(std::max(1u, num_threads), [&ioc] {
+            ioc.run();
+            });
+
+        // После остановки io_context сохраняем состояние (если не было сохранено в обработчике сигналов)
+        if (serializer) {
+            // Если обработчик сигналов не вызван, всё равно сохраняем
             std::cout << "Saving final state..." << std::endl;
-            g_serializer->SaveNow();
+            serializer->SaveNow();
         }
 
-        std::cout << "Server stopped normally" << std::endl;
+        std::cout << "Server stopped" << std::endl;
 
     }
-    catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+    catch (const std::exception& ex) {
+        std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
 

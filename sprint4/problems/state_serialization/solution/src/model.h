@@ -5,9 +5,15 @@
 #include <vector>
 #include <compare>
 #include <cstdint>
+#include <unordered_map>
 
 #include "geom.h"
 #include "tagged.h"
+
+// Предварительное объявление для сериализации
+namespace serialization {
+    class GameStateRepr;
+}
 
 namespace model {
 
@@ -163,4 +169,64 @@ namespace model {
         std::string name_;
     };
 
-}  // namespace model
+    // Класс Game - основное игровое состояние
+    class Game {
+    public:
+        // Конструктор
+        Game() = default;
+        explicit Game(std::vector<Map> maps);
+
+        // --- Методы для управления картами ---
+
+        // Получить все карты
+        const std::vector<Map>& GetMaps() const noexcept { return maps_; }
+
+        // Найти карту по ID
+        const Map* FindMap(const Map::Id& id) const;
+        Map* FindMap(const Map::Id& id);
+
+        // --- Методы для управления собаками ---
+
+        // Добавить собаку на карту (возвращает ID собаки)
+        Dog::Id AddDog(const Map::Id& map_id, const std::string& name, geom::Point2D pos);
+
+        // Получить собаку по ID
+        Dog* GetDog(const Dog::Id& dog_id);
+        const Dog* GetDog(const Dog::Id& dog_id) const;
+
+        // Получить всех собак на карте
+        std::vector<Dog*> GetDogsOnMap(const Map::Id& map_id);
+        std::vector<const Dog*> GetDogsOnMap(const Map::Id& map_id) const;
+
+        // --- Методы для управления потерянными предметами ---
+
+        // Добавить потерянный предмет на карту
+        void AddLoot(const Map::Id& map_id, FoundObject loot);
+
+        // Получить все предметы на карте
+        const std::vector<FoundObject>& GetLootOnMap(const Map::Id& map_id) const;
+
+        // --- Сериализация/восстановление состояния ---
+
+        // Получить полное состояние игры для сериализации
+        serialization::GameStateRepr GetGameStateRepr() const;
+
+        // Восстановить состояние из репрезентации
+        void RestoreFromRepr(const serialization::GameStateRepr& repr);
+
+    private:
+        struct MapState {
+            Map map;                        // статическая информация о карте
+            std::vector<Dog> dogs;          // все собаки на карте
+            std::vector<FoundObject> loot;  // все потерянные предметы
+        };
+
+        std::vector<Map> maps_;                    // статические карты
+        std::unordered_map<Map::Id, MapState> map_states_;  // динамическое состояние карт
+
+        // Вспомогательные методы
+        MapState& GetMapState(const Map::Id& map_id);
+        const MapState& GetMapState(const Map::Id& map_id) const;
+    };
+
+} // namespace model

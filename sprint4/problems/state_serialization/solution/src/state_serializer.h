@@ -4,13 +4,13 @@
 #include <filesystem>
 #include <optional>
 #include <boost/signals2.hpp>
-#include "application.h"
+#include "model.h"
 
 namespace infra {
 
     class StateSerializer {
     public:
-        StateSerializer(app::Application& app,
+        StateSerializer(model::Game& game,
             std::filesystem::path state_file,
             std::optional<app::Milliseconds> save_period);
 
@@ -21,7 +21,7 @@ namespace infra {
         void SaveNow();
 
     private:
-        app::Application& app_;
+        model::Game& game_;
         std::filesystem::path state_file_;
         std::optional<app::Milliseconds> save_period_;
         app::Milliseconds elapsed_since_last_save_{ 0 };

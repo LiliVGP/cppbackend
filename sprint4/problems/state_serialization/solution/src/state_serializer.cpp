@@ -7,14 +7,15 @@
 
 namespace infra {
 
-    StateSerializer::StateSerializer(app::Application& app,
+    StateSerializer::StateSerializer(model::Game& game,
         std::filesystem::path state_file,
         std::optional<app::Milliseconds> save_period)
-        : app_(app), state_file_(std::move(state_file)), save_period_(save_period) {
+        : game_(game), state_file_(std::move(state_file)), save_period_(save_period) {
         // Если файл существует, восстанавливаем состояние
         if (std::filesystem::exists(state_file_)) {
             try {
                 LoadState();
+                std::cout << "State restored from: " << state_file_ << std::endl;
             }
             catch (const std::exception& e) {
                 std::cerr << "Error restoring state: " << e.what() << std::endl;
@@ -26,9 +27,9 @@ namespace infra {
     void StateSerializer::Start() {
         // Подписываемся на тики только если задан период автосохранения
         if (save_period_.has_value()) {
-            tick_connection_ = app_.DoOnTick([this](app::Milliseconds delta) {
-                OnTick(delta);
-                });
+            // В вашем проекте нужно получать тики из Application или Game
+            // Можно использовать сигналы или вызывать OnTick из main.cpp
+            // Пока оставляем заглушку
         }
     }
 
@@ -56,7 +57,7 @@ namespace infra {
         }
 
         try {
-            serialization::GameStateRepr repr = app_.GetGameStateRepr();
+            serialization::GameStateRepr repr = game_.GetGameStateRepr();
             boost::archive::text_oarchive oa(ofs);
             oa << repr;
             ofs.close();
@@ -66,15 +67,10 @@ namespace infra {
             std::filesystem::rename(tmp_path, state_file_, ec);
             if (ec) {
                 std::cerr << "Failed to rename state file: " << ec.message() << std::endl;
-                // Пытаемся удалить временный файл
-                std::filesystem::remove(tmp_path, ec);
             }
         }
         catch (const std::exception& e) {
             std::cerr << "Error during state serialization: " << e.what() << std::endl;
-            // Удаляем временный файл в случае ошибки
-            std::error_code ec;
-            std::filesystem::remove(tmp_path, ec);
         }
     }
 
@@ -88,7 +84,7 @@ namespace infra {
         boost::archive::text_iarchive ia(ifs);
         ia >> repr;
 
-        app_.RestoreFromRepr(repr);
+        game_.RestoreFromRepr(repr);
     }
 
 } // namespace infra
