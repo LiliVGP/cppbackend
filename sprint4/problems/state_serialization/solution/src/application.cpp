@@ -90,10 +90,11 @@ namespace app {
         static std::mt19937 gen(rd());
         static std::uniform_int_distribution<> dis(0, 15);
         const char* hex = "0123456789abcdef";
-        std::string token(32, ' ');
+        std::string token_str(32, ' ');
         for (int i = 0; i < 32; ++i) {
-            token[i] = hex[dis(gen)];
+            token_str[i] = hex[dis(gen)];
         }
+        Token token{ std::move(token_str) };
 
         static uint32_t next_player_id = 1;
         PlayerId player_id{ next_player_id++ };

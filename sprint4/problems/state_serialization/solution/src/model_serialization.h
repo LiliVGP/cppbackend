@@ -107,14 +107,14 @@ namespace serialization {
     struct PlayerRepr {
         app::PlayerId player_id = app::PlayerId{ 0u };
         model::Dog::Id dog_id = model::Dog::Id{ 0u };
-        std::string token;
+        app::Token token = app::Token{ "" };
         model::Map::Id map_id = model::Map::Id{ "" };
 
         template <typename Archive>
         void serialize(Archive& ar, [[maybe_unused]] const unsigned version) {
             ar&* player_id;
             ar&* dog_id;
-            ar& token;
+            ar&* token;
             ar&* map_id;
         }
     };
