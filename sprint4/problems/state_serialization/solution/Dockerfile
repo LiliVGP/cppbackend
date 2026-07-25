@@ -28,4 +28,6 @@ COPY ./data /app/data
 COPY ./static /app/static
 RUN chmod -R a+r /app/data /app/static
 
-USER www
+EXPOSE 8080
+WORKDIR /app
+ENTRYPOINT ["/app/game_server", "--config-file", "/app/data/config.json", "--www-root", "/app/static/"]
