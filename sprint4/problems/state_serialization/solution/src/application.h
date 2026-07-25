@@ -10,16 +10,11 @@
 
 #include "model.h"
 #include "geom.h"
+#include "types.h"
 
 namespace app {
 
     using Milliseconds = std::chrono::milliseconds;
-
-    // Идентификатор игрока
-    using PlayerId = util::Tagged<uint32_t, PlayerId>;
-
-    // Токен авторизации (строка)
-    using Token = std::string;
 
     // Сессия игрока: связывает токен, игрока и собаку на карте
     struct Session {

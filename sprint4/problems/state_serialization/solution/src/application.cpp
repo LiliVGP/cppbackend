@@ -98,7 +98,7 @@ namespace app {
         static uint32_t next_player_id = 1;
         PlayerId player_id{ next_player_id++ };
 
-        sessions_.push_back({ token, player_id, dog_id, map_id });
+        sessions_.emplace_back(Session{ token, player_id, dog_id, map_id });
         return token;
     }
 

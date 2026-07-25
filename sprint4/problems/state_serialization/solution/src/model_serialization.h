@@ -6,11 +6,7 @@
 
 #include "model.h"
 #include "geom.h"
-
-namespace app {
-    using PlayerId = util::Tagged<uint32_t, PlayerId>;
-    using Token = std::string;
-} // namespace app
+#include "types.h"
 
 namespace geom {
 

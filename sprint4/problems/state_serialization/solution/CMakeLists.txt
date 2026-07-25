@@ -15,6 +15,7 @@ add_library(game_model STATIC
     src/model.h
     src/model.cpp
     src/tagged.h
+    src/types.h
     src/application.h
     src/application.cpp
     src/state_serializer.h
@@ -29,7 +30,6 @@ add_executable(game_server_tests
 
 target_link_libraries(game_server_tests CONAN_PKG::catch2 game_model)
 
-# Если есть основной исполняемый файл сервера, добавьте его
 add_executable(game_server
     src/main.cpp
 )
