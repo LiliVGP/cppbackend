@@ -11,6 +11,7 @@
 
 #include "model.h"
 #include "model_serialization.h"
+#include "http_server.h"
 
 namespace po = boost::program_options;
 namespace net = boost::asio;
