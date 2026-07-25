@@ -29,3 +29,5 @@ COPY ./static /app/static
 RUN chmod -R a+r /app/data /app/static
 
 USER www
+
+CMD ["/app/game_server", "--port", "8080"]
