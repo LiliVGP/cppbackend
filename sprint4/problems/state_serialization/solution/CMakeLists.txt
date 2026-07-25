@@ -32,7 +32,7 @@ add_executable(game_server_tests
 target_link_libraries(game_server_tests CONAN_PKG::catch2 game_model)
 
 add_executable(game_server
-    src/http_server.h
+    src/main.cpp
 )
 
 target_link_libraries(game_server game_model CONAN_PKG::boost)
