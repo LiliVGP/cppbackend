@@ -98,6 +98,15 @@ namespace model {
     // Потерянный предмет на карте
     struct LostItem {
         using Id = util::Tagged<uint32_t, LostItem>;
+
+        // Конструктор по умолчанию для сериализации
+        LostItem() : id(Id{ 0u }), type(0), position(0, 0) {}
+
+        // Конструктор с параметрами
+        LostItem(Id id_, LostObjectType type_, geom::Point2D pos)
+            : id(std::move(id_)), type(type_), position(pos) {
+        }
+
         Id id;
         LostObjectType type;
         geom::Point2D position;
