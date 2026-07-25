@@ -17,17 +17,17 @@ namespace net = boost::asio;
 namespace sys = boost::system;
 
 // Глобальная переменная для управления завершением
-std::atomic<bool> g_shutdown_requested{false};
+std::atomic<bool> g_shutdown_requested{ false };
 
 // Функция для запуска воркеров
 void RunWorkers(unsigned num_threads, std::function<void()> worker_func) {
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
-    
+
     for (unsigned i = 0; i < num_threads; ++i) {
         workers.emplace_back(worker_func);
     }
-    
+
     for (auto& worker : workers) {
         worker.join();
     }
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
             ("tick-period", po::value<int>(), "Automatic tick period in milliseconds")
             ("num-threads", po::value<unsigned>()->default_value(4), "Number of worker threads")
             ("port", po::value<uint16_t>()->default_value(8080), "HTTP server port")
-        ;
+            ;
 
         po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
 
         // Параметры состояния
         std::string state_file;
-        std::chrono::milliseconds save_period{0};
-        std::chrono::milliseconds tick_period{0};
+        std::chrono::milliseconds save_period{ 0 };
+        std::chrono::milliseconds tick_period{ 0 };
 
         if (vm.count("state-file")) {
             state_file = vm["state-file"].as<std::string>();
@@ -76,22 +76,22 @@ int main(int argc, char* argv[]) {
 
         // Инициализация приложения
         model::Application app;
-        
+
         // Инициализация менеджера состояния
         serialization::StateManager state_manager(app.GetGameModel(), state_file, save_period);
-        
+
         // Подключаем менеджер состояния к сигналам приложения
         boost::signals2::connection tick_connection = app.DoOnTick([&state_manager](std::chrono::milliseconds delta) {
             if (!g_shutdown_requested) {
                 state_manager.OnTick(delta);
             }
-        });
-        
+            });
+
         boost::signals2::connection save_connection = app.DoOnSave([&state_manager]() {
             if (!g_shutdown_requested) {
                 state_manager.OnSave();
             }
-        });
+            });
 
         // Восстановление состояния из файла
         if (!state_file.empty() && std::filesystem::exists(state_file)) {
@@ -102,13 +102,16 @@ int main(int argc, char* argv[]) {
                     return EXIT_FAILURE;
                 }
                 std::cout << "State successfully restored" << std::endl;
-            } catch (const std::exception& e) {
+            }
+            catch (const std::exception& e) {
                 std::cerr << "Error restoring state: " << e.what() << std::endl;
                 return EXIT_FAILURE;
             }
-        } else if (!state_file.empty()) {
+        }
+        else if (!state_file.empty()) {
             std::cout << "State file does not exist, starting with clean state" << std::endl;
-        } else {
+        }
+        else {
             std::cout << "No state file specified, starting with clean state" << std::endl;
         }
 
@@ -121,21 +124,22 @@ int main(int argc, char* argv[]) {
             if (!ec) {
                 std::cout << "Received signal " << signal_number << ", shutting down..." << std::endl;
                 g_shutdown_requested = true;
-                
+
                 // Сохраняем состояние перед завершением
                 if (!state_file.empty()) {
                     try {
                         state_manager.OnSave();
                         std::cout << "State saved successfully" << std::endl;
-                    } catch (const std::exception& e) {
+                    }
+                    catch (const std::exception& e) {
                         std::cerr << "Error saving state: " << e.what() << std::endl;
                     }
                 }
-                
+
                 // Останавливаем io_context
                 ioc.stop();
             }
-        });
+            });
 
         // Если задан tick-period, запускаем автоматические тики
         boost::asio::steady_timer tick_timer(ioc);
@@ -147,7 +151,7 @@ int main(int argc, char* argv[]) {
                     tick_timer.expires_after(tick_period);
                     tick_timer.async_wait(tick_handler);
                 }
-            };
+                };
             tick_timer.expires_after(tick_period);
             tick_timer.async_wait(tick_handler);
             std::cout << "Automatic ticks enabled with period: " << tick_period.count() << "ms" << std::endl;
@@ -160,12 +164,13 @@ int main(int argc, char* argv[]) {
         // Запуск воркеров
         RunWorkers(std::max(1u, num_threads), [&ioc] {
             ioc.run();
-        });
+            });
 
         std::cout << "Server stopped" << std::endl;
         return EXIT_SUCCESS;
 
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
