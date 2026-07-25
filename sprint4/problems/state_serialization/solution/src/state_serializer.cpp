@@ -9,7 +9,7 @@ namespace infra {
 
     StateSerializer::StateSerializer(model::Game& game,
         std::filesystem::path state_file,
-        std::optional<app::Milliseconds> save_period)
+        std::optional<Milliseconds> save_period)
         : game_(game), state_file_(std::move(state_file)), save_period_(save_period) {
         // Если файл существует, восстанавливаем состояние
         if (std::filesystem::exists(state_file_)) {
@@ -27,17 +27,17 @@ namespace infra {
     void StateSerializer::Start() {
         // Подписываемся на тики только если задан период автосохранения
         if (save_period_.has_value()) {
-            // В вашем проекте нужно получать тики из Application или Game
-            // Можно использовать сигналы или вызывать OnTick из main.cpp
-            // Пока оставляем заглушку
+            // Здесь нужно подписаться на тики из Game
+            // Например, через сигналы или колбэки
+            std::cout << "Auto-save enabled, period: " << save_period_->count() << " ms" << std::endl;
         }
     }
 
-    void StateSerializer::OnTick(app::Milliseconds delta) {
+    void StateSerializer::OnTick(Milliseconds delta) {
         elapsed_since_last_save_ += delta;
         if (elapsed_since_last_save_ >= *save_period_) {
             SaveState();
-            elapsed_since_last_save_ = app::Milliseconds{ 0 };
+            elapsed_since_last_save_ = Milliseconds{ 0 };
         }
     }
 
@@ -68,9 +68,15 @@ namespace infra {
             if (ec) {
                 std::cerr << "Failed to rename state file: " << ec.message() << std::endl;
             }
+            else {
+                std::cout << "State saved to: " << state_file_ << std::endl;
+            }
         }
         catch (const std::exception& e) {
             std::cerr << "Error during state serialization: " << e.what() << std::endl;
+            // Удаляем временный файл в случае ошибки
+            std::error_code ec;
+            std::filesystem::remove(tmp_path, ec);
         }
     }
 
