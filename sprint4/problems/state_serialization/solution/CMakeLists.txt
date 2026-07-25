@@ -10,27 +10,17 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_library(game_model STATIC
-    src/geom.h
-    src/model_serialization.h
-    src/model.h
-    src/model.cpp
-    src/tagged.h
-    src/application.h
-    src/sdk.h
+	src/geom.h
+	src/model_serialization.h
+	src/model.h
+	src/model.cpp
+	src/tagged.h
 )
 
 target_link_libraries(game_model PUBLIC CONAN_PKG::boost Threads::Threads)
 
-add_executable(game_server
-    src/main.cpp
-)
-
-target_include_directories(game_server PRIVATE CONAN_PKG::boost)
-target_link_libraries(game_server PRIVATE CONAN_PKG::boost)
-
 add_executable(game_server_tests
-    tests/state-serialization-tests.cpp
+	tests/state-serialization-tests.cpp
 )
 
-target_include_directories(game_server_tests PRIVATE CONAN_PKG::boost)
-target_link_libraries(game_server_tests PRIVATE CONAN_PKG::catch2 CONAN_PKG::boost Threads::Threads)
+target_link_libraries(game_server_tests CONAN_PKG::catch2 game_model)
