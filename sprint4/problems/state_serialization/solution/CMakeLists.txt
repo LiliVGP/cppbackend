@@ -9,30 +9,30 @@ conan_basic_setup(TARGETS)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+# Статическая библиотека с игровой моделью
 add_library(game_model STATIC
-	src/geom.h
-	src/model_serialization.h
-	src/model.h
-	src/model.cpp
-	src/tagged.h
-	src/main.cpp
-	src/application.h
-	src/sdk.h
+    src/geom.h
+    src/model_serialization.h
+    src/model.h
+    src/model.cpp
+    src/tagged.h
+    src/application.h
+    src/sdk.h
 )
 
 target_link_libraries(game_model PUBLIC CONAN_PKG::boost Threads::Threads)
 
+# Исполняемый файл сервера - только main.cpp
 add_executable(game_server
-	src/http_server.h
+    src/main.cpp
 )
 
-
 target_include_directories(game_server PRIVATE CONAN_PKG::boost)
-target_link_libraries(game_server PRIVATE CONAN_PKG::boost)
+target_link_libraries(game_server PRIVATE CONAN_PKG::boost game_model)
 
-
+# Исполняемый файл тестов
 add_executable(game_server_tests
-	tests/state-serialization-tests.cpp
+    tests/state-serialization-tests.cpp
 )
 
 target_link_libraries(game_server_tests CONAN_PKG::catch2 game_model)
