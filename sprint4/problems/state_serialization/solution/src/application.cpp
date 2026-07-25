@@ -1,5 +1,5 @@
-#include "application.h"
-#include "model_serialization.h"
+#include "model_serialization.h"  // Сначала включаем полное определение GameStateRepr
+#include "application.h"          // Затем включаем application.h
 #include <stdexcept>
 #include <algorithm>
 #include <random>

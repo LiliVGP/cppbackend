@@ -12,6 +12,11 @@
 #include "geom.h"
 #include "types.h"
 
+// Полное определение GameStateRepr будет включено через model_serialization.h в .cpp файле
+namespace serialization {
+    class GameStateRepr;
+}
+
 namespace app {
 
     using Milliseconds = std::chrono::milliseconds;
@@ -23,11 +28,6 @@ namespace app {
         model::Dog::Id dog_id;
         model::Map::Id map_id;
     };
-
-    // Предварительное объявление для сериализации
-    namespace serialization {
-        class GameStateRepr;
-    }
 
     // Класс приложения, управляющий игровым состоянием
     class Application {
