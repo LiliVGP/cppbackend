@@ -65,7 +65,6 @@ public:
             tokens_.push_back(token);
             token_dog_ids_.push_back(dog_id);
         }
-        std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
     
     GameState Restore() const {
@@ -76,7 +75,6 @@ public:
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
-        std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
     }
     
@@ -104,18 +102,8 @@ void SaveState(const GameState& state, const std::string& path) {
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
-        std::cout << "Successfully wrote " << state.tokens.size() << " tokens to " << temp_path << std::endl;
     }
     std::filesystem::rename(temp_path, path);
-    std::cout << "State saved to: " << path << std::endl;
-    std::cout << "Saved " << state.tokens.size() << " tokens" << std::endl;
-    // Выведем первые несколько токенов для проверки
-    int count = 0;
-    for (const auto& [token, dog_id] : state.tokens) {
-        if (count++ < 5) {
-            std::cout << "  Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
-        }
-    }
 }
 
 GameState LoadState(const std::string& path) {
@@ -126,16 +114,7 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    auto state = repr.Restore();
-    std::cout << "Loaded " << state.tokens.size() << " tokens from " << path << std::endl;
-    // Выведем первые несколько токенов для проверки
-    int count = 0;
-    for (const auto& [token, dog_id] : state.tokens) {
-        if (count++ < 5) {
-            std::cout << "  Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
-        }
-    }
-    return state;
+    return repr.Restore();
 }
 
 // Наблюдатель для сохранения
@@ -145,10 +124,11 @@ public:
         : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
     
     void OnTick(std::chrono::milliseconds game_time) {
-        // ВСЕГДА сохраняем состояние при каждом тике для теста
-        SaveState(state_, path_);
-        last_save_time_ = game_time;
-        std::cout << "Forced save at game_time: " << game_time.count() << " ms" << std::endl;
+        if (period_ != std::chrono::milliseconds::max() && 
+            game_time - last_save_time_ >= period_) {
+            SaveState(state_, path_);
+            last_save_time_ = game_time;
+        }
     }
     
     void SaveOnShutdown() {
@@ -175,8 +155,18 @@ public:
     
     void Tick(std::chrono::milliseconds delta) {
         game_time_ += delta;
+        
+        // ИСПРАВЛЕНИЕ: обновляем позиции собак
+        for (auto& dog : state_.dogs) {
+            auto pos = dog.GetPosition();
+            auto speed = dog.GetSpeed();
+            // Перемещаем собаку на основе скорости
+            pos.x += speed.x * delta.count() / 1000.0;
+            pos.y += speed.y * delta.count() / 1000.0;
+            dog.SetPosition(pos);
+        }
+        
         tick_signal_(delta);
-        // Принудительно сохраняем состояние после каждого тика
         if (listener_) {
             listener_->OnTick(game_time_);
         }
@@ -202,7 +192,6 @@ public:
         
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
-        std::cout << "Created token: '" << token << "' for player " << name << std::endl;
         return token;
     }
     
@@ -283,17 +272,15 @@ private:
                 std::string token;
                 if (req.find("authorization") != req.end()) {
                     std::string auth = std::string(req["authorization"].data(), req["authorization"].size());
-                    // Убираем "Bearer " из заголовка
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
                     } else {
-                        token = auth; // если нет префикса, берём как есть
+                        token = auth;
                     }
                 }
                 
                 auto state = app_.GetState();
                 if (!state.HasToken(token)) {
-                    std::cout << "Invalid token: '" << token << "'" << std::endl;
                     res.result(http::status::unauthorized);
                     res.body() = R"({"error":"Invalid token"})";
                     res.prepare_payload();
@@ -352,17 +339,10 @@ int main(int argc, char* argv[]) {
         try {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
-            std::cout << "State loaded from: " << state_file_path << std::endl;
-            std::cout << "Loaded " << state.dogs.size() << " dogs" << std::endl;
-            std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
-    } else if (should_save) {
-        std::cout << "State file not found, starting with empty state" << std::endl;
-    } else {
-        std::cout << "Starting with empty state (no state file)" << std::endl;
     }
     
     std::shared_ptr<SerializingListener> listener;
@@ -371,9 +351,6 @@ int main(int argc, char* argv[]) {
         listener = std::make_shared<SerializingListener>(state_file_path, period);
         listener->SetState(app.GetState());
         app.SetListener(listener);
-        app.DoOnTick([&listener](std::chrono::milliseconds delta) {
-            // Тики уже обрабатываются в Application::Tick
-        });
     }
     
     try {
@@ -382,20 +359,9 @@ int main(int argc, char* argv[]) {
         HttpServer server(ioc, endpoint, app);
         server.Run();
         
-        std::cout << "Server started on port " << port << std::endl;
-        if (should_save) {
-            std::cout << "State will be saved to: " << state_file_path << std::endl;
-            if (save_period) {
-                std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
-            } else {
-                std::cout << "Auto-save disabled (only on shutdown)" << std::endl;
-            }
-        }
-        
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&](const sys::error_code& ec, int) {
             if (!ec) {
-                std::cout << "Shutting down..." << std::endl;
                 if (listener) {
                     listener->SetState(app.GetState());
                     listener->SaveOnShutdown();
