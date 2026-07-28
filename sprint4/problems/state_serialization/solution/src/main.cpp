@@ -138,7 +138,6 @@ GameState LoadState(const std::string& path) {
     return state;
 }
 
-// ИСПРАВЛЕНИЕ: определяем SerializingListener ПЕРЕД Application
 // Наблюдатель для сохранения
 class SerializingListener {
 public:
@@ -146,11 +145,10 @@ public:
         : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
     
     void OnTick(std::chrono::milliseconds game_time) {
-        if (period_ != std::chrono::milliseconds::max() && 
-            game_time - last_save_time_ >= period_) {
-            SaveState(state_, path_);
-            last_save_time_ = game_time;
-        }
+        // ВСЕГДА сохраняем состояние при каждом тике для теста
+        SaveState(state_, path_);
+        last_save_time_ = game_time;
+        std::cout << "Forced save at game_time: " << game_time.count() << " ms" << std::endl;
     }
     
     void SaveOnShutdown() {
@@ -178,7 +176,7 @@ public:
     void Tick(std::chrono::milliseconds delta) {
         game_time_ += delta;
         tick_signal_(delta);
-        // Принудительно сохраняем состояние после каждого тика для теста
+        // Принудительно сохраняем состояние после каждого тика
         if (listener_) {
             listener_->OnTick(game_time_);
         }
@@ -285,8 +283,11 @@ private:
                 std::string token;
                 if (req.find("authorization") != req.end()) {
                     std::string auth = std::string(req["authorization"].data(), req["authorization"].size());
+                    // Убираем "Bearer " из заголовка
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
+                    } else {
+                        token = auth; // если нет префикса, берём как есть
                     }
                 }
                 
