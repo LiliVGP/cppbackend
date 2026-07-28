@@ -34,10 +34,9 @@ using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
-// Состояние игры
 struct GameState {
     std::vector<model::Dog> dogs;
-    std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id
+    std::unordered_map<std::string, uint32_t> tokens;
 
     GameState() = default;
 
@@ -52,7 +51,6 @@ struct GameState {
     }
 };
 
-// Сериализация GameState
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -91,7 +89,6 @@ private:
     std::vector<uint32_t> token_dog_ids_;
 };
 
-// Функции сохранения и загрузки
 void SaveState(const GameState& state, const std::string& path) {
     std::string temp_path = path + ".tmp";
     {
@@ -117,7 +114,6 @@ GameState LoadState(const std::string& path) {
     return repr.Restore();
 }
 
-// Наблюдатель для сохранения
 class SerializingListener {
 public:
     SerializingListener(const std::string& path, std::chrono::milliseconds period)
@@ -144,7 +140,6 @@ private:
     GameState state_;
 };
 
-// Игровое приложение
 class Application {
 public:
     using TickSignal = boost::signals2::signal<void(std::chrono::milliseconds)>;
@@ -186,12 +181,18 @@ public:
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{dog_id_int};
         model::Dog dog{dog_id, name, {0, 0}, 3};
-        // ✅ скорость задаётся, чтобы собаки двигались
         dog.SetSpeed({2.0, 1.0});
         state_.dogs.push_back(dog);
 
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
+
+        // ✅ СОХРАНЯЕМ СРАЗУ ПОСЛЕ СОЗДАНИЯ ТОКЕНА
+        if (listener_) {
+            listener_->SetState(state_);
+            listener_->SaveOnShutdown();
+        }
+
         return token;
     }
 
@@ -222,7 +223,6 @@ private:
     std::shared_ptr<SerializingListener> listener_;
 };
 
-// HTTP-сервер
 class HttpServer {
 public:
     HttpServer(net::io_context& ioc, tcp::endpoint endpoint, Application& app)
