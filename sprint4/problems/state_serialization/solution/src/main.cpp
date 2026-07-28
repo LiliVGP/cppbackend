@@ -37,7 +37,7 @@ using namespace std::literals;
 // Состояние игры
 struct GameState {
     std::vector<model::Dog> dogs;
-    std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id (храним как uint32_t)
+    std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id
     
     GameState() = default;
     
@@ -52,7 +52,7 @@ struct GameState {
     }
 };
 
-// Сериализация GameState - с двумя отдельными векторами
+// Сериализация GameState
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -61,7 +61,6 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // Сохраняем токены как два отдельных вектора
         for (const auto& [token, dog_id] : state.tokens) {
             tokens_.push_back(token);
             token_dog_ids_.push_back(dog_id);
@@ -74,7 +73,6 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        // Восстанавливаем токены из двух векторов
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
@@ -106,9 +104,18 @@ void SaveState(const GameState& state, const std::string& path) {
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
+        std::cout << "Successfully wrote " << state.tokens.size() << " tokens to " << temp_path << std::endl;
     }
     std::filesystem::rename(temp_path, path);
     std::cout << "State saved to: " << path << std::endl;
+    std::cout << "Saved " << state.tokens.size() << " tokens" << std::endl;
+    // Выведем первые несколько токенов для проверки
+    int count = 0;
+    for (const auto& [token, dog_id] : state.tokens) {
+        if (count++ < 5) {
+            std::cout << "  Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
+        }
+    }
 }
 
 GameState LoadState(const std::string& path) {
@@ -119,7 +126,16 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    return repr.Restore();
+    auto state = repr.Restore();
+    std::cout << "Loaded " << state.tokens.size() << " tokens from " << path << std::endl;
+    // Выведем первые несколько токенов для проверки
+    int count = 0;
+    for (const auto& [token, dog_id] : state.tokens) {
+        if (count++ < 5) {
+            std::cout << "  Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
+        }
+    }
+    return state;
 }
 
 // Игровое приложение
@@ -134,6 +150,10 @@ public:
     void Tick(std::chrono::milliseconds delta) {
         game_time_ += delta;
         tick_signal_(delta);
+        // Принудительно сохраняем состояние после каждого тика для теста
+        if (listener_) {
+            listener_->OnTick(game_time_);
+        }
     }
     
     void SetState(const GameState& state) {
@@ -144,6 +164,10 @@ public:
         return state_;
     }
     
+    void SetListener(std::shared_ptr<class SerializingListener> listener) {
+        listener_ = listener;
+    }
+    
     std::string JoinGame(const std::string& name, const std::string& map_id) {
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{dog_id_int};
@@ -152,6 +176,7 @@ public:
         
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
+        std::cout << "Created token: '" << token << "' for player " << name << std::endl;
         return token;
     }
     
@@ -179,6 +204,7 @@ private:
     GameState state_;
     TickSignal tick_signal_;
     std::chrono::milliseconds game_time_{0};
+    std::shared_ptr<class SerializingListener> listener_;
 };
 
 // Наблюдатель для сохранения
@@ -327,10 +353,6 @@ int main(int argc, char* argv[]) {
             std::cout << "State loaded from: " << state_file_path << std::endl;
             std::cout << "Loaded " << state.dogs.size() << " dogs" << std::endl;
             std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;
-            // Выведем все токены для проверки
-            for (const auto& [token, dog_id] : state.tokens) {
-                std::cout << "Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
-            }
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
@@ -341,13 +363,14 @@ int main(int argc, char* argv[]) {
         std::cout << "Starting with empty state (no state file)" << std::endl;
     }
     
-    std::unique_ptr<SerializingListener> listener;
+    std::shared_ptr<SerializingListener> listener;
     if (should_save) {
         auto period = save_period.value_or(std::chrono::milliseconds::max());
-        listener = std::make_unique<SerializingListener>(state_file_path, period);
+        listener = std::make_shared<SerializingListener>(state_file_path, period);
         listener->SetState(app.GetState());
+        app.SetListener(listener);
         app.DoOnTick([&listener](std::chrono::milliseconds delta) {
-            listener->OnTick(delta);
+            // Тики уже обрабатываются в Application::Tick
         });
     }
     
@@ -362,6 +385,8 @@ int main(int argc, char* argv[]) {
             std::cout << "State will be saved to: " << state_file_path << std::endl;
             if (save_period) {
                 std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
+            } else {
+                std::cout << "Auto-save disabled (only on shutdown)" << std::endl;
             }
         }
         
