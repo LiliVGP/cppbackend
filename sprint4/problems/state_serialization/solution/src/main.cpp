@@ -34,7 +34,7 @@ using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
-// Состояние игры - МИНИМАЛЬНОЕ
+// Состояние игры
 struct GameState {
     std::vector<model::Dog> dogs;
     std::unordered_map<std::string, model::Dog::Id> tokens;
@@ -48,7 +48,7 @@ struct GameState {
     }
 };
 
-// Сериализация GameState - ПРОСТАЯ
+// Сериализация GameState
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -57,7 +57,6 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // Сериализуем токены как отдельные векторы
         for (const auto& [token, dog_id] : state.tokens) {
             tokens_.push_back(token);
             token_dog_ids_.push_back(*dog_id);
@@ -70,7 +69,7 @@ public:
             state.dogs.push_back(dog_repr.Restore());
         }
         for (size_t i = 0; i < tokens_.size(); ++i) {
-            state.tokens[tokens_[i]] = model::Dog::Id{token_dog_ids_[i]};
+            state.tokens.emplace(tokens_[i], model::Dog::Id{token_dog_ids_[i]});
         }
         return state;
     }
@@ -130,18 +129,16 @@ public:
         return state_;
     }
     
-    // Присоединение игрока
     std::string JoinGame(const std::string& name, const std::string& map_id) {
         model::Dog::Id dog_id{static_cast<uint32_t>(state_.dogs.size() + 1)};
         model::Dog dog{dog_id, name, {0, 0}, 3};
         state_.dogs.push_back(dog);
         
         std::string token = "token" + std::to_string(*dog_id);
-        state_.tokens[token] = dog_id;
+        state_.tokens.emplace(token, dog_id);
         return token;
     }
     
-    // Получение состояния игры
     json::object GetGameState(const std::string& token) {
         auto it = state_.tokens.find(token);
         if (it == state_.tokens.end()) {
@@ -232,7 +229,6 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                // ИСПРАВЛЕНИЕ: используем find вместо operator[]
                 uint32_t player_id = *app_.GetState().tokens[token];
                 
                 json::object response;
@@ -243,10 +239,10 @@ private:
                 res.body() = json::serialize(response);
                 
             } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
+                // ИСПРАВЛЕНИЕ: используем direct_string_view для преобразования
                 std::string token;
                 if (req.find("authorization") != req.end()) {
-                    // ИСПРАВЛЕНИЕ: используем boost::beast::to_string
-                    std::string auth = beast::to_string(req["authorization"]);
+                    std::string auth = std::string(req["authorization"].data(), req["authorization"].size());
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
                     }
