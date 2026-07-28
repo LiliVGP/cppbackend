@@ -229,7 +229,13 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                uint32_t player_id = *app_.GetState().tokens[token];
+                // ИСПРАВЛЕНИЕ: используем find вместо operator[]
+                auto tokens = app_.GetState().tokens;
+                auto it = tokens.find(token);
+                if (it == tokens.end()) {
+                    throw std::runtime_error("Token not found");
+                }
+                uint32_t player_id = *it->second;
                 
                 json::object response;
                 response["authToken"] = token;
@@ -239,7 +245,6 @@ private:
                 res.body() = json::serialize(response);
                 
             } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
-                // ИСПРАВЛЕНИЕ: используем direct_string_view для преобразования
                 std::string token;
                 if (req.find("authorization") != req.end()) {
                     std::string auth = std::string(req["authorization"].data(), req["authorization"].size());
