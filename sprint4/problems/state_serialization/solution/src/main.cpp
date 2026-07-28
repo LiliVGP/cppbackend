@@ -98,6 +98,7 @@ private:
 // Функции сохранения и загрузки
 void SaveState(const GameState& state, const std::string& path) {
     std::string temp_path = path + ".tmp";
+    std::cout << "Attempting to save state to: " << temp_path << std::endl;
     {
         std::ofstream ofs(temp_path);
         if (!ofs) {
@@ -106,17 +107,43 @@ void SaveState(const GameState& state, const std::string& path) {
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
-        std::cout << "Saved " << state.tokens.size() << " tokens to " << temp_path << std::endl;
+        std::cout << "Successfully wrote " << state.tokens.size() << " tokens to " << temp_path << std::endl;
     }
+    
+    // Проверяем, что временный файл создан
+    if (std::filesystem::exists(temp_path)) {
+        std::cout << "Temp file created: " << temp_path << std::endl;
+        std::cout << "File size: " << std::filesystem::file_size(temp_path) << " bytes" << std::endl;
+    } else {
+        std::cout << "ERROR: Temp file not created!" << std::endl;
+    }
+    
     std::filesystem::rename(temp_path, path);
     std::cout << "State saved to: " << path << std::endl;
+    
+    // Проверяем, что целевой файл создан
+    if (std::filesystem::exists(path)) {
+        std::cout << "Target file created: " << path << std::endl;
+        std::cout << "File size: " << std::filesystem::file_size(path) << " bytes" << std::endl;
+    } else {
+        std::cout << "ERROR: Target file not created!" << std::endl;
+    }
 }
 
 GameState LoadState(const std::string& path) {
+    std::cout << "Attempting to load state from: " << path << std::endl;
+    
+    if (!std::filesystem::exists(path)) {
+        throw std::runtime_error("State file does not exist: " + path);
+    }
+    
     std::ifstream ifs(path);
     if (!ifs) {
         throw std::runtime_error("Cannot open file for reading: " + path);
     }
+    
+    std::cout << "File size: " << std::filesystem::file_size(path) << " bytes" << std::endl;
+    
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
@@ -359,6 +386,10 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
+    } else if (should_save) {
+        std::cout << "State file not found, starting with empty state" << std::endl;
+    } else {
+        std::cout << "Starting with empty state (no state file)" << std::endl;
     }
     
     std::shared_ptr<SerializingListener> listener;
@@ -375,9 +406,12 @@ int main(int argc, char* argv[]) {
         HttpServer server(ioc, endpoint, app);
         server.Run();
         
+        std::cout << "Server started on port " << port << std::endl;
+        
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&](const sys::error_code& ec, int) {
             if (!ec) {
+                std::cout << "Shutting down..." << std::endl;
                 if (listener) {
                     listener->SetState(app.GetState());
                     listener->SaveOnShutdown();
