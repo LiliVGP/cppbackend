@@ -63,6 +63,7 @@ public:
             tokens_.push_back(pair.first);
             token_dog_ids_.push_back(pair.second);
         }
+        std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
 
     GameState Restore() const {
@@ -70,6 +71,7 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
+        std::cout << "Restoring " << tokens_.size() << " tokens" << std::endl;
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
@@ -81,7 +83,6 @@ public:
         ar & dogs_;
         ar & tokens_;
         ar & token_dog_ids_;
-        std::cout << "Serialized " << tokens_.size() << " tokens" << std::endl;
     }
 
 private:
@@ -112,9 +113,7 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    auto state = repr.Restore();
-    std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;
-    return state;
+    return repr.Restore();
 }
 
 class SerializingListener {
