@@ -138,6 +138,34 @@ GameState LoadState(const std::string& path) {
     return state;
 }
 
+// ИСПРАВЛЕНИЕ: определяем SerializingListener ПЕРЕД Application
+// Наблюдатель для сохранения
+class SerializingListener {
+public:
+    SerializingListener(const std::string& path, std::chrono::milliseconds period)
+        : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
+    
+    void OnTick(std::chrono::milliseconds game_time) {
+        if (period_ != std::chrono::milliseconds::max() && 
+            game_time - last_save_time_ >= period_) {
+            SaveState(state_, path_);
+            last_save_time_ = game_time;
+        }
+    }
+    
+    void SaveOnShutdown() {
+        SaveState(state_, path_);
+    }
+    
+    void SetState(const GameState& state) { state_ = state; }
+    
+private:
+    std::string path_;
+    std::chrono::milliseconds period_;
+    std::chrono::milliseconds last_save_time_;
+    GameState state_;
+};
+
 // Игровое приложение
 class Application {
 public:
@@ -164,7 +192,7 @@ public:
         return state_;
     }
     
-    void SetListener(std::shared_ptr<class SerializingListener> listener) {
+    void SetListener(std::shared_ptr<SerializingListener> listener) {
         listener_ = listener;
     }
     
@@ -204,34 +232,7 @@ private:
     GameState state_;
     TickSignal tick_signal_;
     std::chrono::milliseconds game_time_{0};
-    std::shared_ptr<class SerializingListener> listener_;
-};
-
-// Наблюдатель для сохранения
-class SerializingListener {
-public:
-    SerializingListener(const std::string& path, std::chrono::milliseconds period)
-        : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
-    
-    void OnTick(std::chrono::milliseconds game_time) {
-        if (period_ != std::chrono::milliseconds::max() && 
-            game_time - last_save_time_ >= period_) {
-            SaveState(state_, path_);
-            last_save_time_ = game_time;
-        }
-    }
-    
-    void SaveOnShutdown() {
-        SaveState(state_, path_);
-    }
-    
-    void SetState(const GameState& state) { state_ = state; }
-    
-private:
-    std::string path_;
-    std::chrono::milliseconds period_;
-    std::chrono::milliseconds last_save_time_;
-    GameState state_;
+    std::shared_ptr<SerializingListener> listener_;
 };
 
 // HTTP-сервер
