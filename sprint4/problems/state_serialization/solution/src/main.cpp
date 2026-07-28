@@ -34,14 +34,13 @@ using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
-// Состояние игры
+// Состояние игры - УПРОЩЁННОЕ
 struct GameState {
     std::vector<model::Dog> dogs;
-    std::unordered_map<std::string, model::Dog::Id> tokens;
+    std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id (храним как uint32_t)
     
     GameState() = default;
     
-    // Метод для проверки существования токена
     bool HasToken(const std::string& token) const {
         return tokens.find(token) != tokens.end();
     }
@@ -53,7 +52,7 @@ struct GameState {
     }
 };
 
-// Сериализация GameState
+// Сериализация GameState - УПРОЩЁННАЯ
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -62,9 +61,9 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
+        // Сохраняем токены как пары (token, dog_id)
         for (const auto& [token, dog_id] : state.tokens) {
-            tokens_.push_back(token);
-            token_dog_ids_.push_back(*dog_id);
+            tokens_.emplace_back(token, dog_id);
         }
         std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
@@ -74,8 +73,9 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        for (size_t i = 0; i < tokens_.size(); ++i) {
-            state.tokens.emplace(tokens_[i], model::Dog::Id{token_dog_ids_[i]});
+        // Восстанавливаем токены
+        for (const auto& [token, dog_id] : tokens_) {
+            state.tokens[token] = dog_id;
         }
         std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
@@ -85,13 +85,11 @@ public:
     void serialize(Archive& ar, unsigned) {
         ar & dogs_;
         ar & tokens_;
-        ar & token_dog_ids_;
     }
     
 private:
     std::vector<serialization::DogRepr> dogs_;
-    std::vector<std::string> tokens_;
-    std::vector<uint32_t> token_dog_ids_;
+    std::vector<std::pair<std::string, uint32_t>> tokens_;
 };
 
 // Функции сохранения и загрузки
@@ -99,15 +97,22 @@ void SaveState(const GameState& state, const std::string& path) {
     std::string temp_path = path + ".tmp";
     {
         std::ofstream ofs(temp_path);
+        if (!ofs) {
+            throw std::runtime_error("Cannot open file for writing: " + temp_path);
+        }
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
     }
     std::filesystem::rename(temp_path, path);
+    std::cout << "State saved to: " << path << std::endl;
 }
 
 GameState LoadState(const std::string& path) {
     std::ifstream ifs(path);
+    if (!ifs) {
+        throw std::runtime_error("Cannot open file for reading: " + path);
+    }
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
@@ -137,12 +142,13 @@ public:
     }
     
     std::string JoinGame(const std::string& name, const std::string& map_id) {
-        model::Dog::Id dog_id{static_cast<uint32_t>(state_.dogs.size() + 1)};
+        uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
+        model::Dog::Id dog_id{dog_id_int};
         model::Dog dog{dog_id, name, {0, 0}, 3};
         state_.dogs.push_back(dog);
         
-        std::string token = "token" + std::to_string(*dog_id);
-        state_.tokens.emplace(token, dog_id);
+        std::string token = "token" + std::to_string(dog_id_int);
+        state_.tokens[token] = dog_id_int;
         return token;
     }
     
@@ -236,14 +242,7 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                
-                // Получаем player_id через find вместо operator[]
-                auto tokens = app_.GetState().tokens;
-                auto it = tokens.find(token);
-                if (it == tokens.end()) {
-                    throw std::runtime_error("Token not found after creation");
-                }
-                uint32_t player_id = *it->second;
+                uint32_t player_id = app_.GetState().tokens[token];
                 
                 json::object response;
                 response["authToken"] = token;
@@ -261,10 +260,9 @@ private:
                     }
                 }
                 
-                // Проверяем существование токена
                 auto state = app_.GetState();
                 if (!state.HasToken(token)) {
-                    std::cout << "Invalid token: " << token << std::endl;
+                    std::cout << "Invalid token: '" << token << "'" << std::endl;
                     res.result(http::status::unauthorized);
                     res.body() = R"({"error":"Invalid token"})";
                     res.prepare_payload();
@@ -326,17 +324,18 @@ int main(int argc, char* argv[]) {
             std::cout << "State loaded from: " << state_file_path << std::endl;
             std::cout << "Loaded " << state.dogs.size() << " dogs" << std::endl;
             std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;
-            // Выведем первые несколько токенов для проверки
-            int count = 0;
+            // Выведем все токены для проверки
             for (const auto& [token, dog_id] : state.tokens) {
-                if (count++ < 5) {
-                    std::cout << "Token: " << token << " -> dog_id: " << *dog_id << std::endl;
-                }
+                std::cout << "Token: '" << token << "' -> dog_id: " << dog_id << std::endl;
             }
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
+    } else if (should_save) {
+        std::cout << "State file not found, starting with empty state" << std::endl;
+    } else {
+        std::cout << "Starting with empty state (no state file)" << std::endl;
     }
     
     std::unique_ptr<SerializingListener> listener;
@@ -356,6 +355,12 @@ int main(int argc, char* argv[]) {
         server.Run();
         
         std::cout << "Server started on port " << port << std::endl;
+        if (should_save) {
+            std::cout << "State will be saved to: " << state_file_path << std::endl;
+            if (save_period) {
+                std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
+            }
+        }
         
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&](const sys::error_code& ec, int) {
