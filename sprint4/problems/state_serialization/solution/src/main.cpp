@@ -9,7 +9,6 @@
 #include <functional>
 #include <memory>
 #include <sstream>
-#include <random>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -35,31 +34,21 @@ using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
-// Состояние игры
+// Состояние игры - МИНИМАЛЬНОЕ
 struct GameState {
     std::vector<model::Dog> dogs;
-    std::unordered_map<std::string, model::Dog::Id> tokens; // token -> dog_id
-    // ИСПРАВЛЕНИЕ: используем TaggedHasher для Dog::Id
-    std::unordered_map<model::Dog::Id, std::string, util::TaggedHasher<model::Dog::Id>> dog_names;
+    std::unordered_map<std::string, model::Dog::Id> tokens;
     
     GameState() = default;
-    
-    GameState(const GameState& other) = default;
-    GameState& operator=(const GameState& other) = default;
     
     bool operator==(const GameState& other) const {
         if (dogs.size() != other.dogs.size()) return false;
         if (tokens.size() != other.tokens.size()) return false;
-        for (size_t i = 0; i < dogs.size(); ++i) {
-            if (dogs[i].GetId() != other.dogs[i].GetId()) return false;
-            if (dogs[i].GetName() != other.dogs[i].GetName()) return false;
-            if (dogs[i].GetPosition() != other.dogs[i].GetPosition()) return false;
-        }
         return true;
     }
 };
 
-// Сериализация GameState
+// Сериализация GameState - ПРОСТАЯ
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -68,25 +57,20 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
+        // Сериализуем токены как отдельные векторы
         for (const auto& [token, dog_id] : state.tokens) {
-            tokens_.emplace_back(token, *dog_id);
-        }
-        for (const auto& [dog_id, name] : state.dog_names) {
-            dog_names_.emplace_back(*dog_id, name);
+            tokens_.push_back(token);
+            token_dog_ids_.push_back(*dog_id);
         }
     }
     
     GameState Restore() const {
         GameState state;
         for (const auto& dog_repr : dogs_) {
-            auto dog = dog_repr.Restore();
-            state.dogs.push_back(dog);
+            state.dogs.push_back(dog_repr.Restore());
         }
-        for (const auto& [token, dog_id] : tokens_) {
-            state.tokens[token] = model::Dog::Id{dog_id};
-        }
-        for (const auto& [dog_id, name] : dog_names_) {
-            state.dog_names[model::Dog::Id{dog_id}] = name;
+        for (size_t i = 0; i < tokens_.size(); ++i) {
+            state.tokens[tokens_[i]] = model::Dog::Id{token_dog_ids_[i]};
         }
         return state;
     }
@@ -95,13 +79,13 @@ public:
     void serialize(Archive& ar, unsigned) {
         ar & dogs_;
         ar & tokens_;
-        ar & dog_names_;
+        ar & token_dog_ids_;
     }
     
 private:
     std::vector<serialization::DogRepr> dogs_;
-    std::vector<std::pair<std::string, uint32_t>> tokens_;
-    std::vector<std::pair<uint32_t, std::string>> dog_names_;
+    std::vector<std::string> tokens_;
+    std::vector<uint32_t> token_dog_ids_;
 };
 
 // Функции сохранения и загрузки
@@ -109,9 +93,6 @@ void SaveState(const GameState& state, const std::string& path) {
     std::string temp_path = path + ".tmp";
     {
         std::ofstream ofs(temp_path);
-        if (!ofs) {
-            throw std::runtime_error("Cannot open file for writing: " + temp_path);
-        }
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
@@ -121,9 +102,6 @@ void SaveState(const GameState& state, const std::string& path) {
 
 GameState LoadState(const std::string& path) {
     std::ifstream ifs(path);
-    if (!ifs) {
-        throw std::runtime_error("Cannot open file for reading: " + path);
-    }
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
@@ -141,14 +119,6 @@ public:
     
     void Tick(std::chrono::milliseconds delta) {
         game_time_ += delta;
-        // Обновление позиций собак
-        for (auto& dog : state_.dogs) {
-            auto pos = dog.GetPosition();
-            auto speed = dog.GetSpeed();
-            pos.x += speed.x * delta.count() / 1000.0;
-            pos.y += speed.y * delta.count() / 1000.0;
-            dog.SetPosition(pos);
-        }
         tick_signal_(delta);
     }
     
@@ -160,35 +130,25 @@ public:
         return state_;
     }
     
-    std::chrono::milliseconds GetGameTime() const {
-        return game_time_;
-    }
-    
     // Присоединение игрока
     std::string JoinGame(const std::string& name, const std::string& map_id) {
-        // Создаём собаку
         model::Dog::Id dog_id{static_cast<uint32_t>(state_.dogs.size() + 1)};
         model::Dog dog{dog_id, name, {0, 0}, 3};
         state_.dogs.push_back(dog);
-        state_.dog_names[dog_id] = name;
         
-        // Генерируем токен
         std::string token = "token" + std::to_string(*dog_id);
         state_.tokens[token] = dog_id;
-        
         return token;
     }
     
-    // Получение состояния игры для конкретного игрока
+    // Получение состояния игры
     json::object GetGameState(const std::string& token) {
-        auto it = state_.tokens.find(token);
-        if (it == state_.tokens.end()) {
+        if (state_.tokens.find(token) == state_.tokens.end()) {
             return {{"error", "Invalid token"}};
         }
         
         json::object response;
         json::array players;
-        
         for (const auto& dog : state_.dogs) {
             json::object player;
             player["name"] = dog.GetName();
@@ -196,10 +156,8 @@ public:
             player["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
             players.push_back(player);
         }
-        
         response["players"] = players;
         response["lostObjects"] = json::array{};
-        
         return response;
     }
     
@@ -209,36 +167,25 @@ private:
     std::chrono::milliseconds game_time_{0};
 };
 
-// Класс-наблюдатель для автоматического сохранения
+// Наблюдатель для сохранения
 class SerializingListener {
 public:
-    SerializingListener(const std::string& path, 
-                        std::chrono::milliseconds period)
-        : path_(path)
-        , period_(period)
-        , last_save_time_(std::chrono::milliseconds::zero()) {}
+    SerializingListener(const std::string& path, std::chrono::milliseconds period)
+        : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
     
     void OnTick(std::chrono::milliseconds game_time) {
         if (period_ != std::chrono::milliseconds::max() && 
             game_time - last_save_time_ >= period_) {
             SaveState(state_, path_);
             last_save_time_ = game_time;
-            std::cout << "State saved to: " << path_ << std::endl;
         }
     }
     
     void SaveOnShutdown() {
         SaveState(state_, path_);
-        std::cout << "State saved on shutdown to: " << path_ << std::endl;
     }
     
-    void SetState(const GameState& state) {
-        state_ = state;
-    }
-    
-    const GameState& GetState() const {
-        return state_;
-    }
+    void SetState(const GameState& state) { state_ = state; }
     
 private:
     std::string path_;
@@ -251,23 +198,16 @@ private:
 class HttpServer {
 public:
     HttpServer(net::io_context& ioc, tcp::endpoint endpoint, Application& app)
-        : ioc_(ioc)
-        , acceptor_(ioc, endpoint)
-        , app_(app) {
-    }
+        : ioc_(ioc), acceptor_(ioc, endpoint), app_(app) {}
 
-    void Run() {
-        DoAccept();
-    }
+    void Run() { DoAccept(); }
 
 private:
     void DoAccept() {
         auto socket = std::make_shared<tcp::socket>(ioc_);
         acceptor_.async_accept(*socket, [this, socket](sys::error_code ec) {
             if (!ec) {
-                std::thread([this, socket]() {
-                    HandleRequest(*socket);
-                }).detach();
+                std::thread([this, socket]() { HandleRequest(*socket); }).detach();
             }
             DoAccept();
         });
@@ -276,27 +216,21 @@ private:
     void HandleRequest(tcp::socket& socket) {
         beast::flat_buffer buffer;
         http::request<http::string_body> req;
-        
         beast::error_code ec;
         http::read(socket, buffer, req, ec);
-        if (ec) {
-            return;
-        }
+        if (ec) return;
 
         http::response<http::string_body> res;
         res.version(11);
         res.set(http::field::content_type, "application/json");
-        res.set(http::field::server, "Game Server");
 
         try {
             if (req.target() == "/api/v1/game/join" && req.method() == http::verb::post) {
-                // Присоединение к игре
                 auto body = json::parse(req.body()).as_object();
                 std::string name = body["userName"].as_string().c_str();
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                // ИСПРАВЛЕНИЕ: разыменовываем Tagged
                 uint32_t player_id = *app_.GetState().tokens[token];
                 
                 json::object response;
@@ -305,45 +239,35 @@ private:
                 
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
-                res.prepare_payload();
                 
             } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
-                // Получение состояния игры
                 std::string token;
                 if (req.find("authorization") != req.end()) {
-                    // ИСПРАВЛЕНИЕ: используем std::string
-                    std::string auth = std::string(req["authorization"]);
+                    std::string auth = req["authorization"];
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
                     }
                 }
-                
                 auto response = app_.GetGameState(token);
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
-                res.prepare_payload();
                 
             } else if (req.target() == "/api/v1/game/tick" && req.method() == http::verb::post) {
-                // Тик игры
                 auto body = json::parse(req.body()).as_object();
                 int ms = body["timeDelta"].as_int64();
                 app_.Tick(std::chrono::milliseconds(ms));
-                
                 res.result(http::status::ok);
                 res.body() = "{}";
-                res.prepare_payload();
                 
             } else {
                 res.result(http::status::not_found);
                 res.body() = R"({"error":"Not found"})";
-                res.prepare_payload();
             }
         } catch (const std::exception& e) {
             res.result(http::status::bad_request);
             res.body() = R"({"error":")" + std::string(e.what()) + R"("})";
-            res.prepare_payload();
         }
-
+        res.prepare_payload();
         http::write(socket, res, ec);
     }
 
@@ -353,11 +277,8 @@ private:
 };
 
 int main(int argc, char* argv[]) {
-    // 1. Парсинг аргументов командной строки
     std::string state_file_path;
     std::optional<std::chrono::milliseconds> save_period;
-    std::string config_path = "data/config.json";
-    std::string static_path = "static";
     uint16_t port = 8080;
     
     for (int i = 1; i < argc; ++i) {
@@ -366,16 +287,11 @@ int main(int argc, char* argv[]) {
             state_file_path = argv[++i];
         } else if (arg == "--save-state-period" && i + 1 < argc) {
             save_period = std::chrono::milliseconds(std::stoll(argv[++i]));
-        } else if (arg == "--config" && i + 1 < argc) {
-            config_path = argv[++i];
-        } else if (arg == "--static" && i + 1 < argc) {
-            static_path = argv[++i];
         } else if (arg == "--port" && i + 1 < argc) {
             port = static_cast<uint16_t>(std::stoi(argv[++i]));
         }
     }
     
-    // 2. Создание приложения и восстановление состояния
     Application app;
     bool should_save = !state_file_path.empty();
     
@@ -384,48 +300,30 @@ int main(int argc, char* argv[]) {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
             std::cout << "State loaded from: " << state_file_path << std::endl;
-            std::cout << "Loaded " << state.dogs.size() << " dogs" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
-    } else if (should_save) {
-        std::cout << "State file not found, starting with empty state" << std::endl;
-    } else {
-        std::cout << "Starting with empty state (no state file)" << std::endl;
     }
     
-    // 3. Создание слушателя для сохранения
     std::unique_ptr<SerializingListener> listener;
     if (should_save) {
         auto period = save_period.value_or(std::chrono::milliseconds::max());
         listener = std::make_unique<SerializingListener>(state_file_path, period);
         listener->SetState(app.GetState());
-        
-        // Подписка на тики
         app.DoOnTick([&listener](std::chrono::milliseconds delta) {
             listener->OnTick(delta);
         });
     }
     
-    // 4. Запуск сервера
     try {
         net::io_context ioc;
-        
-        // HTTP-сервер
         tcp::endpoint endpoint(tcp::v4(), port);
         HttpServer server(ioc, endpoint, app);
         server.Run();
         
         std::cout << "Server started on port " << port << std::endl;
-        if (should_save) {
-            std::cout << "State will be saved to: " << state_file_path << std::endl;
-            if (save_period) {
-                std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
-            }
-        }
         
-        // 5. Подписка на сигналы завершения
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&](const sys::error_code& ec, int) {
             if (!ec) {
@@ -438,19 +336,14 @@ int main(int argc, char* argv[]) {
             }
         });
         
-        // 6. Запуск воркеров
         unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
         std::vector<std::thread> workers;
         for (unsigned i = 0; i < num_threads; ++i) {
             workers.emplace_back([&ioc] { ioc.run(); });
         }
-        
-        for (auto& t : workers) {
-            t.join();
-        }
+        for (auto& t : workers) t.join();
         
         return EXIT_SUCCESS;
-        
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
