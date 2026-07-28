@@ -69,12 +69,9 @@ public:
     GameState Restore() const {
         GameState state;
         
-        // Создаем временный вектор для хранения восстановленных собак
-        std::vector<model::Dog> restored_dogs;
-        restored_dogs.reserve(dogs_.size());
-        
+        // Восстанавливаем собак в том же порядке, в котором они были сохранены
         for (const auto& dog_repr : dogs_) {
-            restored_dogs.push_back(dog_repr.Restore());
+            state.dogs.push_back(dog_repr.Restore());
         }
         
         // Восстанавливаем токены и связываем их с собаками
@@ -82,13 +79,6 @@ public:
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
         
-        // Сортируем собак по ID перед добавлением в state
-        std::sort(restored_dogs.begin(), restored_dogs.end(),
-            [](const model::Dog& a, const model::Dog& b) {
-                return *a.GetId() < *b.GetId();
-            });
-        
-        state.dogs = std::move(restored_dogs);
         return state;
     }
 
@@ -195,20 +185,21 @@ public:
     }
 
     std::string JoinGame(const std::string& name, const std::string& map_id) {
-        // Находим максимальный ID среди существующих собак
-        uint32_t max_id = 0;
+        // Находим следующий свободный ID
+        uint32_t next_id = 1;
         for (const auto& dog : state_.dogs) {
-            max_id = std::max(max_id, *dog.GetId());
+            if (*dog.GetId() >= next_id) {
+                next_id = *dog.GetId() + 1;
+            }
         }
-        uint32_t dog_id_int = max_id + 1;
         
-        model::Dog::Id dog_id{ dog_id_int };
+        model::Dog::Id dog_id{ next_id };
         model::Dog dog{ dog_id, name, {0, 0}, 3 };
         dog.SetSpeed({ 2.0, 1.0 });
         state_.dogs.push_back(dog);
 
-        std::string token = "token" + std::to_string(dog_id_int);
-        state_.tokens[token] = dog_id_int;
+        std::string token = "token" + std::to_string(next_id);
+        state_.tokens[token] = next_id;
         return token;
     }
 
