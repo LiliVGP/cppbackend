@@ -69,9 +69,12 @@ public:
     GameState Restore() const {
         GameState state;
         
-        // Восстанавливаем всех собак
+        // Создаем временный вектор для хранения восстановленных собак
+        std::vector<model::Dog> restored_dogs;
+        restored_dogs.reserve(dogs_.size());
+        
         for (const auto& dog_repr : dogs_) {
-            state.dogs.push_back(dog_repr.Restore());
+            restored_dogs.push_back(dog_repr.Restore());
         }
         
         // Восстанавливаем токены и связываем их с собаками
@@ -79,6 +82,13 @@ public:
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
         
+        // Сортируем собак по ID перед добавлением в state
+        std::sort(restored_dogs.begin(), restored_dogs.end(),
+            [](const model::Dog& a, const model::Dog& b) {
+                return *a.GetId() < *b.GetId();
+            });
+        
+        state.dogs = std::move(restored_dogs);
         return state;
     }
 
