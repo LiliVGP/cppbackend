@@ -10,6 +10,7 @@
 #include <memory>
 #include <sstream>
 #include <unordered_map>
+#include <algorithm>
 
 #include <boost/asio.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -68,7 +69,7 @@ public:
     GameState Restore() const {
         GameState state;
         
-        // Восстанавливаем собак в том же порядке
+        // Восстанавливаем собак
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
