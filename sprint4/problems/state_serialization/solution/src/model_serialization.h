@@ -27,7 +27,6 @@ namespace model {
         uint32_t id_value = *obj.id;
         ar& id_value;
         ar& obj.type;
-        // После десериализации восстанавливаем Tagged
         if (!Archive::is_saving::value) {
             obj.id = FoundObject::Id{id_value};
         }
