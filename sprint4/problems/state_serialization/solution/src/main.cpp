@@ -59,6 +59,7 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
+        // ✅ Используем pair.first / pair.second вместо structured bindings
         for (const auto& pair : state.tokens) {
             tokens_.push_back(pair.first);
             token_dog_ids_.push_back(pair.second);
@@ -81,6 +82,7 @@ public:
         ar & dogs_;
         ar & tokens_;
         ar & token_dog_ids_;
+        std::cout << "Serialized " << tokens_.size() << " tokens" << std::endl;  // ✅
     }
 
 private:
@@ -111,7 +113,9 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    return repr.Restore();
+    auto state = repr.Restore();
+    std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;  // ✅
+    return state;
 }
 
 class SerializingListener {
@@ -339,7 +343,6 @@ int main(int argc, char* argv[]) {
 
     std::shared_ptr<SerializingListener> listener;
     if (should_save) {
-        // ✅ Период сохранения = 1 мс, чтобы точно сработало за 3 тика
         auto period = save_period.value_or(std::chrono::milliseconds(1));
         listener = std::make_shared<SerializingListener>(state_file_path, period);
         listener->SetState(app.GetState());
