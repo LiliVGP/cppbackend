@@ -24,7 +24,12 @@ namespace model {
     // Сериализация FoundObject
     template <typename Archive>
     void serialize(Archive& ar, FoundObject& obj, [[maybe_unused]] const unsigned version) {
-        ar& obj.id;
+        // Сериализуем значение внутри Tagged, а не сам Tagged
+        uint32_t id_value = *obj.id;
+        ar& id_value;
+        if constexpr (!Archive::is_saving::value) {
+            obj.id = FoundObject::Id{id_value};
+        }
         ar& obj.type;
     }
 
