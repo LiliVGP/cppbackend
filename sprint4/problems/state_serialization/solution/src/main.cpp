@@ -41,6 +41,11 @@ struct GameState {
     
     GameState() = default;
     
+    // Метод для проверки существования токена
+    bool HasToken(const std::string& token) const {
+        return tokens.find(token) != tokens.end();
+    }
+    
     bool operator==(const GameState& other) const {
         if (dogs.size() != other.dogs.size()) return false;
         if (tokens.size() != other.tokens.size()) return false;
@@ -61,6 +66,7 @@ public:
             tokens_.push_back(token);
             token_dog_ids_.push_back(*dog_id);
         }
+        std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
     
     GameState Restore() const {
@@ -71,6 +77,7 @@ public:
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens.emplace(tokens_[i], model::Dog::Id{token_dog_ids_[i]});
         }
+        std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
     }
     
@@ -229,11 +236,12 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                // ИСПРАВЛЕНИЕ: используем find вместо operator[]
+                
+                // Получаем player_id через find вместо operator[]
                 auto tokens = app_.GetState().tokens;
                 auto it = tokens.find(token);
                 if (it == tokens.end()) {
-                    throw std::runtime_error("Token not found");
+                    throw std::runtime_error("Token not found after creation");
                 }
                 uint32_t player_id = *it->second;
                 
@@ -252,6 +260,18 @@ private:
                         token = auth.substr(7);
                     }
                 }
+                
+                // Проверяем существование токена
+                auto state = app_.GetState();
+                if (!state.HasToken(token)) {
+                    std::cout << "Invalid token: " << token << std::endl;
+                    res.result(http::status::unauthorized);
+                    res.body() = R"({"error":"Invalid token"})";
+                    res.prepare_payload();
+                    http::write(socket, res, ec);
+                    return;
+                }
+                
                 auto response = app_.GetGameState(token);
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
@@ -304,6 +324,15 @@ int main(int argc, char* argv[]) {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
             std::cout << "State loaded from: " << state_file_path << std::endl;
+            std::cout << "Loaded " << state.dogs.size() << " dogs" << std::endl;
+            std::cout << "Loaded " << state.tokens.size() << " tokens" << std::endl;
+            // Выведем первые несколько токенов для проверки
+            int count = 0;
+            for (const auto& [token, dog_id] : state.tokens) {
+                if (count++ < 5) {
+                    std::cout << "Token: " << token << " -> dog_id: " << *dog_id << std::endl;
+                }
+            }
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
