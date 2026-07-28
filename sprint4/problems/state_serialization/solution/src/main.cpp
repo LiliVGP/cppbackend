@@ -296,7 +296,8 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
-                uint32_t player_id = app_.GetState().tokens[token];
+                // ИСПРАВЛЕНИЕ: разыменовываем Tagged
+                uint32_t player_id = *app_.GetState().tokens[token];
                 
                 json::object response;
                 response["authToken"] = token;
@@ -310,7 +311,8 @@ private:
                 // Получение состояния игры
                 std::string token;
                 if (req.find("authorization") != req.end()) {
-                    std::string auth = req["authorization"];
+                    // ИСПРАВЛЕНИЕ: используем std::string
+                    std::string auth = std::string(req["authorization"]);
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
                     }
