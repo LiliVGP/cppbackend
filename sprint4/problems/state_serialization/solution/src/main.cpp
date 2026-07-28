@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 #include <fstream>
+#include <functional>
 
 #include <boost/asio.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -26,7 +27,6 @@ using namespace std::literals;
 struct GameState {
     std::vector<model::Dog> dogs;
     // Здесь будут другие компоненты: предметы, токены игроков и т.д.
-    // Пока оставляем заглушку, вы добавите свои компоненты
 
     // Для тестов - метод проверки равенства
     bool operator==(const GameState& other) const {
@@ -237,7 +237,9 @@ int main(int argc, char* argv[]) {
         // Создаём несколько тиков для теста (можно заменить на реальный сервер)
         auto tick_timer = std::make_shared<net::steady_timer>(ioc);
 
-        std::function<void()> tick_handler = [&app, tick_timer, &ioc]() {
+        // ИСПРАВЛЕНИЕ: захватываем tick_handler по ссылке через std::function
+        std::function<void()> tick_handler;
+        tick_handler = [&app, tick_timer, &ioc, &tick_handler]() {
             app.Tick(std::chrono::milliseconds(1000)); // тик каждую секунду
 
             // Продолжаем тикать
