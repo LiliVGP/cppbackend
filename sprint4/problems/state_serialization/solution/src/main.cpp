@@ -34,7 +34,7 @@ using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
-// Состояние игры - УПРОЩЁННОЕ
+// Состояние игры
 struct GameState {
     std::vector<model::Dog> dogs;
     std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id (храним как uint32_t)
@@ -52,7 +52,7 @@ struct GameState {
     }
 };
 
-// Сериализация GameState - УПРОЩЁННАЯ
+// Сериализация GameState - с двумя отдельными векторами
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -61,9 +61,10 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // Сохраняем токены как пары (token, dog_id)
+        // Сохраняем токены как два отдельных вектора
         for (const auto& [token, dog_id] : state.tokens) {
-            tokens_.emplace_back(token, dog_id);
+            tokens_.push_back(token);
+            token_dog_ids_.push_back(dog_id);
         }
         std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
@@ -73,9 +74,9 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        // Восстанавливаем токены
-        for (const auto& [token, dog_id] : tokens_) {
-            state.tokens[token] = dog_id;
+        // Восстанавливаем токены из двух векторов
+        for (size_t i = 0; i < tokens_.size(); ++i) {
+            state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
         std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
@@ -85,11 +86,13 @@ public:
     void serialize(Archive& ar, unsigned) {
         ar & dogs_;
         ar & tokens_;
+        ar & token_dog_ids_;
     }
     
 private:
     std::vector<serialization::DogRepr> dogs_;
-    std::vector<std::pair<std::string, uint32_t>> tokens_;
+    std::vector<std::string> tokens_;
+    std::vector<uint32_t> token_dog_ids_;
 };
 
 // Функции сохранения и загрузки
