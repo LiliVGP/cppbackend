@@ -38,13 +38,13 @@ using namespace std::literals;
 struct GameState {
     std::vector<model::Dog> dogs;
     std::unordered_map<std::string, uint32_t> tokens; // token -> dog_id
-    
+
     GameState() = default;
-    
+
     bool HasToken(const std::string& token) const {
         return tokens.find(token) != tokens.end();
     }
-    
+
     bool operator==(const GameState& other) const {
         if (dogs.size() != other.dogs.size()) return false;
         if (tokens.size() != other.tokens.size()) return false;
@@ -52,41 +52,39 @@ struct GameState {
     }
 };
 
-// Сериализация GameState - УПРОЩЁННАЯ
+// Сериализация GameState
 class GameStateRepr {
 public:
     GameStateRepr() = default;
-    
+
     explicit GameStateRepr(const GameState& state) {
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // Сохраняем токены как два вектора
         for (const auto& [token, dog_id] : state.tokens) {
             tokens_.push_back(token);
             token_dog_ids_.push_back(dog_id);
         }
     }
-    
+
     GameState Restore() const {
         GameState state;
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        // Восстанавливаем токены
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
         return state;
     }
-    
+
     template <class Archive>
     void serialize(Archive& ar, unsigned) {
         ar & dogs_;
         ar & tokens_;
         ar & token_dog_ids_;
     }
-    
+
 private:
     std::vector<serialization::DogRepr> dogs_;
     std::vector<std::string> tokens_;
@@ -124,19 +122,21 @@ class SerializingListener {
 public:
     SerializingListener(const std::string& path, std::chrono::milliseconds period)
         : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
-    
+
     void OnTick(std::chrono::milliseconds game_time) {
-        // ВСЕГДА сохраняем при каждом тике для теста
-        SaveState(state_, path_);
-        last_save_time_ = game_time;
+        if (period_ != std::chrono::milliseconds::max() &&
+            game_time - last_save_time_ >= period_) {
+            SaveState(state_, path_);
+            last_save_time_ = game_time;
+        }
     }
-    
+
     void SaveOnShutdown() {
         SaveState(state_, path_);
     }
-    
+
     void SetState(const GameState& state) { state_ = state; }
-    
+
 private:
     std::string path_;
     std::chrono::milliseconds period_;
@@ -148,15 +148,14 @@ private:
 class Application {
 public:
     using TickSignal = boost::signals2::signal<void(std::chrono::milliseconds)>;
-    
+
     boost::signals2::connection DoOnTick(const TickSignal::slot_type& handler) {
         return tick_signal_.connect(handler);
     }
-    
+
     void Tick(std::chrono::milliseconds delta) {
         game_time_ += delta;
-        
-        // Обновляем позиции собак
+
         for (auto& dog : state_.dogs) {
             auto pos = dog.GetPosition();
             auto speed = dog.GetSpeed();
@@ -164,43 +163,50 @@ public:
             pos.y += speed.y * delta.count() / 1000.0;
             dog.SetPosition(pos);
         }
-        
+
         tick_signal_(delta);
         if (listener_) {
             listener_->OnTick(game_time_);
         }
     }
-    
+
     void SetState(const GameState& state) {
         state_ = state;
     }
-    
+
     GameState GetState() const {
         return state_;
     }
-    
+
     void SetListener(std::shared_ptr<SerializingListener> listener) {
         listener_ = listener;
     }
-    
+
     std::string JoinGame(const std::string& name, const std::string& map_id) {
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{dog_id_int};
         model::Dog dog{dog_id, name, {0, 0}, 3};
         dog.SetSpeed({2.0, 1.0});
         state_.dogs.push_back(dog);
-        
+
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
+
+        // ✅ НЕМЕДЛЕННО СОХРАНЯЕМ ПОСЛЕ ДОБАВЛЕНИЯ ТОКЕНА
+        if (listener_) {
+            listener_->SetState(state_);
+            listener_->SaveOnShutdown();
+        }
+
         return token;
     }
-    
+
     json::object GetGameState(const std::string& token) {
         auto it = state_.tokens.find(token);
         if (it == state_.tokens.end()) {
             return {{"error", "Invalid token"}};
         }
-        
+
         json::object response;
         json::array players;
         for (const auto& dog : state_.dogs) {
@@ -214,7 +220,7 @@ public:
         response["lostObjects"] = json::array{};
         return response;
     }
-    
+
 private:
     GameState state_;
     TickSignal tick_signal_;
@@ -257,17 +263,17 @@ private:
                 auto body = json::parse(req.body()).as_object();
                 std::string name = body["userName"].as_string().c_str();
                 std::string map_id = body["mapId"].as_string().c_str();
-                
+
                 std::string token = app_.JoinGame(name, map_id);
                 uint32_t player_id = app_.GetState().tokens[token];
-                
+
                 json::object response;
                 response["authToken"] = token;
                 response["playerId"] = player_id;
-                
+
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
-                
+
             } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
                 std::string token;
                 if (req.find("authorization") != req.end()) {
@@ -278,7 +284,7 @@ private:
                         token = auth;
                     }
                 }
-                
+
                 auto state = app_.GetState();
                 if (!state.HasToken(token)) {
                     res.result(http::status::unauthorized);
@@ -287,18 +293,18 @@ private:
                     http::write(socket, res, ec);
                     return;
                 }
-                
+
                 auto response = app_.GetGameState(token);
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
-                
+
             } else if (req.target() == "/api/v1/game/tick" && req.method() == http::verb::post) {
                 auto body = json::parse(req.body()).as_object();
                 int ms = body["timeDelta"].as_int64();
                 app_.Tick(std::chrono::milliseconds(ms));
                 res.result(http::status::ok);
                 res.body() = "{}";
-                
+
             } else {
                 res.result(http::status::not_found);
                 res.body() = R"({"error":"Not found"})";
@@ -320,7 +326,7 @@ int main(int argc, char* argv[]) {
     std::string state_file_path;
     std::optional<std::chrono::milliseconds> save_period;
     uint16_t port = 8080;
-    
+
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--state-file" && i + 1 < argc) {
@@ -331,10 +337,10 @@ int main(int argc, char* argv[]) {
             port = static_cast<uint16_t>(std::stoi(argv[++i]));
         }
     }
-    
+
     Application app;
     bool should_save = !state_file_path.empty();
-    
+
     if (should_save && std::filesystem::exists(state_file_path)) {
         try {
             GameState state = LoadState(state_file_path);
@@ -345,7 +351,7 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
     }
-    
+
     std::shared_ptr<SerializingListener> listener;
     if (should_save) {
         auto period = save_period.value_or(std::chrono::milliseconds::max());
@@ -353,13 +359,13 @@ int main(int argc, char* argv[]) {
         listener->SetState(app.GetState());
         app.SetListener(listener);
     }
-    
+
     try {
         net::io_context ioc;
         tcp::endpoint endpoint(tcp::v4(), port);
         HttpServer server(ioc, endpoint, app);
         server.Run();
-        
+
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&](const sys::error_code& ec, int) {
             if (!ec) {
@@ -370,14 +376,14 @@ int main(int argc, char* argv[]) {
                 ioc.stop();
             }
         });
-        
+
         unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
         std::vector<std::thread> workers;
         for (unsigned i = 0; i < num_threads; ++i) {
             workers.emplace_back([&ioc] { ioc.run(); });
         }
         for (auto& t : workers) t.join();
-        
+
         return EXIT_SUCCESS;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
