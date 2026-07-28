@@ -64,7 +64,9 @@ public:
         for (const auto& [token, dog_id] : state.tokens) {
             tokens_.push_back(token);
             token_dog_ids_.push_back(dog_id);
+            std::cout << "Serializing token: '" << token << "' -> dog_id: " << dog_id << std::endl;
         }
+        std::cout << "Serialized " << tokens_.size() << " tokens" << std::endl;
     }
     
     GameState Restore() const {
@@ -74,7 +76,9 @@ public:
         }
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
+            std::cout << "Restoring token: '" << tokens_[i] << "' -> dog_id: " << token_dog_ids_[i] << std::endl;
         }
+        std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
     }
     
@@ -102,8 +106,10 @@ void SaveState(const GameState& state, const std::string& path) {
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
+        std::cout << "Saved " << state.tokens.size() << " tokens to " << temp_path << std::endl;
     }
     std::filesystem::rename(temp_path, path);
+    std::cout << "State saved to: " << path << std::endl;
 }
 
 GameState LoadState(const std::string& path) {
@@ -114,7 +120,9 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    return repr.Restore();
+    auto state = repr.Restore();
+    std::cout << "Loaded " << state.tokens.size() << " tokens from " << path << std::endl;
+    return state;
 }
 
 // Наблюдатель для сохранения
@@ -187,18 +195,19 @@ public:
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{dog_id_int};
         model::Dog dog{dog_id, name, {0, 0}, 3};
-        // ИСПРАВЛЕНИЕ: устанавливаем скорость, чтобы собаки двигались
-        dog.SetSpeed({2.0, 1.0}); // скорость 2 по X, 1 по Y
+        dog.SetSpeed({2.0, 1.0});
         state_.dogs.push_back(dog);
         
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
+        std::cout << "Created token: '" << token << "' for player " << name << std::endl;
         return token;
     }
     
     json::object GetGameState(const std::string& token) {
         auto it = state_.tokens.find(token);
         if (it == state_.tokens.end()) {
+            std::cout << "Token not found: '" << token << "'" << std::endl;
             return {{"error", "Invalid token"}};
         }
         
@@ -340,6 +349,7 @@ int main(int argc, char* argv[]) {
         try {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
+            std::cout << "State loaded from: " << state_file_path << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
