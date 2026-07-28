@@ -186,18 +186,12 @@ public:
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{dog_id_int};
         model::Dog dog{dog_id, name, {0, 0}, 3};
+        // ✅ скорость задаётся, чтобы собаки двигались
         dog.SetSpeed({2.0, 1.0});
         state_.dogs.push_back(dog);
 
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
-
-        // ✅ НЕМЕДЛЕННО СОХРАНЯЕМ ПОСЛЕ ДОБАВЛЕНИЯ ТОКЕНА
-        if (listener_) {
-            listener_->SetState(state_);
-            listener_->SaveOnShutdown();
-        }
-
         return token;
     }
 
@@ -345,7 +339,6 @@ int main(int argc, char* argv[]) {
         try {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
-            std::cout << "State loaded from: " << state_file_path << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
