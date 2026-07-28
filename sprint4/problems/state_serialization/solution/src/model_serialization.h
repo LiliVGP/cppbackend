@@ -6,13 +6,13 @@
 namespace geom {
 
     template <typename Archive>
-    void serialize(Archive& ar, Point2D& point, [[maybe_unused]] const unsigned version) {
+    void serialize(Archive& ar, geom::Point2D& point, [[maybe_unused]] const unsigned version) {
         ar& point.x;
         ar& point.y;
     }
 
     template <typename Archive>
-    void serialize(Archive& ar, Vec2D& vec, [[maybe_unused]] const unsigned version) {
+    void serialize(Archive& ar, geom::Vec2D& vec, [[maybe_unused]] const unsigned version) {
         ar& vec.x;
         ar& vec.y;
     }
@@ -24,8 +24,8 @@ namespace model {
     // Сериализация FoundObject
     template <typename Archive>
     void serialize(Archive& ar, FoundObject& obj, [[maybe_unused]] const unsigned version) {
-        ar& (*obj.id);
-        ar& (obj.type);
+        ar& obj.id;
+        ar& obj.type;
     }
 
     // Сериализация Direction (enum)
@@ -44,7 +44,7 @@ namespace serialization {
         DogRepr() = default;
 
         explicit DogRepr(const model::Dog& dog)
-            : id_(dog.GetId())
+            : id_(*dog.GetId())
             , name_(dog.GetName())
             , pos_(dog.GetPosition())
             , bag_capacity_(dog.GetBagCapacity())
@@ -55,7 +55,8 @@ namespace serialization {
         }
 
         [[nodiscard]] model::Dog Restore() const {
-            model::Dog dog{ id_, name_, pos_, bag_capacity_ };
+            model::Dog::Id dog_id{ id_ };
+            model::Dog dog{ dog_id, name_, pos_, bag_capacity_ };
             dog.SetSpeed(speed_);
             dog.SetDirection(direction_);
             dog.AddScore(score_);
@@ -69,7 +70,7 @@ namespace serialization {
 
         template <typename Archive>
         void serialize(Archive& ar, [[maybe_unused]] const unsigned version) {
-            ar&* id_;  // разыменовываем Tagged
+            ar& id_;
             ar& name_;
             ar& pos_;
             ar& bag_capacity_;
@@ -80,7 +81,7 @@ namespace serialization {
         }
 
     private:
-        model::Dog::Id id_ = model::Dog::Id{ 0u };
+        uint32_t id_ = 0;
         std::string name_;
         geom::Point2D pos_;
         size_t bag_capacity_ = 0;
