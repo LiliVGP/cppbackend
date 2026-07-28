@@ -7,6 +7,8 @@
 #include <vector>
 #include <fstream>
 #include <functional>
+#include <memory>
+#include <sstream>
 
 #include <boost/asio.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -14,12 +16,18 @@
 #include <boost/signals2.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/string.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
 
 #include "model.h"
 #include "model_serialization.h"
 
 namespace net = boost::asio;
 namespace sys = boost::system;
+namespace beast = boost::beast;
+namespace http = beast::http;
+using tcp = net::ip::tcp;
 
 using namespace std::literals;
 
@@ -28,7 +36,6 @@ struct GameState {
     std::vector<model::Dog> dogs;
     // Здесь будут другие компоненты: предметы, токены игроков и т.д.
 
-    // Для тестов - метод проверки равенства
     bool operator==(const GameState& other) const {
         if (dogs.size() != other.dogs.size()) return false;
         for (size_t i = 0; i < dogs.size(); ++i) {
@@ -54,7 +61,6 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // Добавьте сериализацию других компонентов
     }
 
     GameState Restore() const {
@@ -62,19 +68,16 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        // Восстановите другие компоненты
         return state;
     }
 
     template <class Archive>
     void serialize(Archive& ar, unsigned) {
         ar& dogs_;
-        // Добавьте сериализацию других полей
     }
 
 private:
     std::vector<serialization::DogRepr> dogs_;
-    // Добавьте другие компоненты
 };
 
 // Функции сохранения и загрузки
@@ -135,11 +138,6 @@ public:
         return state_;
     }
 
-    // Для тестов
-    std::chrono::milliseconds GetLastSaveTime() const {
-        return last_save_time_;
-    }
-
 private:
     std::string path_;
     std::chrono::milliseconds period_;
@@ -147,7 +145,73 @@ private:
     GameState state_;
 };
 
-// Простой класс приложения (заглушка для тестов)
+// HTTP-сервер
+class HttpServer {
+public:
+    HttpServer(net::io_context& ioc, tcp::endpoint endpoint)
+        : ioc_(ioc)
+        , acceptor_(ioc, endpoint) {
+    }
+
+    void Run() {
+        DoAccept();
+    }
+
+private:
+    void DoAccept() {
+        auto socket = std::make_shared<tcp::socket>(ioc_);
+        acceptor_.async_accept(*socket, [this, socket](sys::error_code ec) {
+            if (!ec) {
+                std::thread([this, socket]() {
+                    HandleRequest(*socket);
+                    }).detach();
+            }
+            DoAccept();
+            });
+    }
+
+    void HandleRequest(tcp::socket& socket) {
+        beast::flat_buffer buffer;
+        http::request<http::string_body> req;
+
+        beast::error_code ec;
+        http::read(socket, buffer, req, ec);
+        if (ec) {
+            return;
+        }
+
+        http::response<http::string_body> res;
+        res.version(11);
+        res.set(http::field::content_type, "application/json");
+        res.set(http::field::server, "Game Server");
+
+        if (req.target() == "/api/v1/game/join") {
+            // Присоединение к игре
+            std::string body = R"({"authToken":"token123","playerId":42})";
+            res.result(http::status::ok);
+            res.body() = body;
+            res.prepare_payload();
+        }
+        else if (req.target() == "/api/v1/game/tick") {
+            // Тик игры
+            res.result(http::status::ok);
+            res.body() = "{}";
+            res.prepare_payload();
+        }
+        else {
+            res.result(http::status::not_found);
+            res.body() = R"({"error":"Not found"})";
+            res.prepare_payload();
+        }
+
+        http::write(socket, res, ec);
+    }
+
+    net::io_context& ioc_;
+    tcp::acceptor acceptor_;
+};
+
+// Простой класс приложения
 class Application {
 public:
     using TickSignal = boost::signals2::signal<void(std::chrono::milliseconds)>;
@@ -183,6 +247,9 @@ int main(int argc, char* argv[]) {
     // 1. Парсинг аргументов командной строки
     std::string state_file_path;
     std::optional<std::chrono::milliseconds> save_period;
+    std::string config_path = "data/config.json";
+    std::string static_path = "static";
+    uint16_t port = 8080;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -191,6 +258,15 @@ int main(int argc, char* argv[]) {
         }
         else if (arg == "--save-state-period" && i + 1 < argc) {
             save_period = std::chrono::milliseconds(std::stoll(argv[++i]));
+        }
+        else if (arg == "--config" && i + 1 < argc) {
+            config_path = argv[++i];
+        }
+        else if (arg == "--static" && i + 1 < argc) {
+            static_path = argv[++i];
+        }
+        else if (arg == "--port" && i + 1 < argc) {
+            port = static_cast<uint16_t>(std::stoi(argv[++i]));
         }
     }
 
@@ -230,33 +306,22 @@ int main(int argc, char* argv[]) {
             });
     }
 
-    // 4. Запуск ASIO
+    // 4. Запуск сервера
     try {
         net::io_context ioc;
 
-        // Создаём несколько тиков для теста (можно заменить на реальный сервер)
-        auto tick_timer = std::make_shared<net::steady_timer>(ioc);
+        // HTTP-сервер
+        tcp::endpoint endpoint(tcp::v4(), port);
+        HttpServer server(ioc, endpoint);
+        server.Run();
 
-        // ИСПРАВЛЕНИЕ: захватываем tick_handler по ссылке через std::function
-        std::function<void()> tick_handler;
-        tick_handler = [&app, tick_timer, &ioc, &tick_handler]() {
-            app.Tick(std::chrono::milliseconds(1000)); // тик каждую секунду
-
-            // Продолжаем тикать
-            tick_timer->expires_after(std::chrono::milliseconds(1000));
-            tick_timer->async_wait([&](const sys::error_code& ec) {
-                if (!ec) {
-                    tick_handler();
-                }
-                });
-            };
-
-        tick_timer->expires_after(std::chrono::milliseconds(1000));
-        tick_timer->async_wait([&](const sys::error_code& ec) {
-            if (!ec) {
-                tick_handler();
+        std::cout << "Server started on port " << port << std::endl;
+        if (should_save) {
+            std::cout << "State will be saved to: " << state_file_path << std::endl;
+            if (save_period) {
+                std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
             }
-            });
+        }
 
         // 5. Подписка на сигналы завершения
         net::signal_set signals(ioc, SIGINT, SIGTERM);
@@ -270,14 +335,6 @@ int main(int argc, char* argv[]) {
                 ioc.stop();
             }
             });
-
-        std::cout << "Server started. Press Ctrl+C to stop." << std::endl;
-        if (should_save) {
-            std::cout << "State will be saved to: " << state_file_path << std::endl;
-            if (save_period) {
-                std::cout << "Auto-save period: " << save_period->count() << " ms" << std::endl;
-            }
-        }
 
         // 6. Запуск воркеров
         unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
