@@ -59,7 +59,6 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        // ✅ Используем pair.first / pair.second вместо structured bindings
         for (const auto& pair : state.tokens) {
             tokens_.push_back(pair.first);
             token_dog_ids_.push_back(pair.second);
@@ -79,9 +78,9 @@ public:
 
     template <class Archive>
     void serialize(Archive& ar, unsigned) {
-        ar & dogs_;
-        ar & tokens_;
-        ar & token_dog_ids_;
+        ar& dogs_;
+        ar& tokens_;
+        ar& token_dog_ids_;
     }
 
 private:
@@ -118,7 +117,8 @@ GameState LoadState(const std::string& path) {
 class SerializingListener {
 public:
     SerializingListener(const std::string& path, std::chrono::milliseconds period)
-        : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
+        : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {
+    }
 
     void OnTick(std::chrono::milliseconds game_time) {
         if (period_ != std::chrono::milliseconds::max() &&
@@ -180,9 +180,9 @@ public:
 
     std::string JoinGame(const std::string& name, const std::string& map_id) {
         uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
-        model::Dog::Id dog_id{dog_id_int};
-        model::Dog dog{dog_id, name, {0, 0}, 3};
-        dog.SetSpeed({2.0, 1.0});
+        model::Dog::Id dog_id{ dog_id_int };
+        model::Dog dog{ dog_id, name, {0, 0}, 3 };
+        dog.SetSpeed({ 2.0, 1.0 });
         state_.dogs.push_back(dog);
 
         std::string token = "token" + std::to_string(dog_id_int);
@@ -193,18 +193,25 @@ public:
     json::object GetGameState(const std::string& token) {
         auto it = state_.tokens.find(token);
         if (it == state_.tokens.end()) {
-            return {{"error", "Invalid token"}};
+            return { {"error", "Invalid token"} };
         }
 
+        uint32_t dog_id = it->second;
         json::object response;
         json::array players;
+        
+        // Ищем собаку с данным ID
         for (const auto& dog : state_.dogs) {
-            json::object player;
-            player["name"] = dog.GetName();
-            player["id"] = *dog.GetId();
-            player["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
-            players.push_back(player);
+            if (*dog.GetId() == dog_id) {
+                json::object player;
+                player["name"] = dog.GetName();
+                player["id"] = *dog.GetId();
+                player["pos"] = json::array{ dog.GetPosition().x, dog.GetPosition().y };
+                players.push_back(player);
+                break;
+            }
         }
+        
         response["players"] = players;
         response["lostObjects"] = json::array{};
         return response;
@@ -213,14 +220,15 @@ public:
 private:
     GameState state_;
     TickSignal tick_signal_;
-    std::chrono::milliseconds game_time_{0};
+    std::chrono::milliseconds game_time_{ 0 };
     std::shared_ptr<SerializingListener> listener_;
 };
 
 class HttpServer {
 public:
     HttpServer(net::io_context& ioc, tcp::endpoint endpoint, Application& app)
-        : ioc_(ioc), acceptor_(ioc, endpoint), app_(app) {}
+        : ioc_(ioc), acceptor_(ioc, endpoint), app_(app) {
+    }
 
     void Run() { DoAccept(); }
 
@@ -232,7 +240,7 @@ private:
                 std::thread([this, socket]() { HandleRequest(*socket); }).detach();
             }
             DoAccept();
-        });
+            });
     }
 
     void HandleRequest(tcp::socket& socket) {
@@ -262,13 +270,15 @@ private:
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
 
-            } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
+            }
+            else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
                 std::string token;
                 if (req.find("authorization") != req.end()) {
                     std::string auth = std::string(req["authorization"].data(), req["authorization"].size());
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
-                    } else {
+                    }
+                    else {
                         token = auth;
                     }
                 }
@@ -286,18 +296,21 @@ private:
                 res.result(http::status::ok);
                 res.body() = json::serialize(response);
 
-            } else if (req.target() == "/api/v1/game/tick" && req.method() == http::verb::post) {
+            }
+            else if (req.target() == "/api/v1/game/tick" && req.method() == http::verb::post) {
                 auto body = json::parse(req.body()).as_object();
                 int ms = body["timeDelta"].as_int64();
                 app_.Tick(std::chrono::milliseconds(ms));
                 res.result(http::status::ok);
                 res.body() = "{}";
 
-            } else {
+            }
+            else {
                 res.result(http::status::not_found);
                 res.body() = R"({"error":"Not found"})";
             }
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e) {
             res.result(http::status::bad_request);
             res.body() = R"({"error":")" + std::string(e.what()) + R"("})";
         }
@@ -319,9 +332,11 @@ int main(int argc, char* argv[]) {
         std::string arg = argv[i];
         if (arg == "--state-file" && i + 1 < argc) {
             state_file_path = argv[++i];
-        } else if (arg == "--save-state-period" && i + 1 < argc) {
+        }
+        else if (arg == "--save-state-period" && i + 1 < argc) {
             save_period = std::chrono::milliseconds(std::stoll(argv[++i]));
-        } else if (arg == "--port" && i + 1 < argc) {
+        }
+        else if (arg == "--port" && i + 1 < argc) {
             port = static_cast<uint16_t>(std::stoi(argv[++i]));
         }
     }
@@ -333,7 +348,8 @@ int main(int argc, char* argv[]) {
         try {
             GameState state = LoadState(state_file_path);
             app.SetState(state);
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e) {
             std::cerr << "Error loading state: " << e.what() << std::endl;
             return EXIT_FAILURE;
         }
@@ -362,7 +378,7 @@ int main(int argc, char* argv[]) {
                 }
                 ioc.stop();
             }
-        });
+            });
 
         unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
         std::vector<std::thread> workers;
@@ -372,7 +388,8 @@ int main(int argc, char* argv[]) {
         for (auto& t : workers) t.join();
 
         return EXIT_SUCCESS;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
