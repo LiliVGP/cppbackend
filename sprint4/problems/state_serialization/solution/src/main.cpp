@@ -59,9 +59,10 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
-        for (const auto& [token, dog_id] : state.tokens) {
-            tokens_.push_back(token);
-            token_dog_ids_.push_back(dog_id);
+        // ✅ Используем pair.first / pair.second вместо structured bindings
+        for (const auto& pair : state.tokens) {
+            tokens_.push_back(pair.first);
+            token_dog_ids_.push_back(pair.second);
         }
     }
 
@@ -186,13 +187,6 @@ public:
 
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
-
-        // ✅ СОХРАНЯЕМ СРАЗУ ПОСЛЕ СОЗДАНИЯ ТОКЕНА
-        if (listener_) {
-            listener_->SetState(state_);
-            listener_->SaveOnShutdown();
-        }
-
         return token;
     }
 
