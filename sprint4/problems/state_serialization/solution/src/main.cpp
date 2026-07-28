@@ -39,7 +39,13 @@ using namespace std::literals;
 struct GameState {
     std::vector<model::Dog> dogs;
     std::unordered_map<std::string, model::Dog::Id> tokens; // token -> dog_id
-    std::unordered_map<model::Dog::Id, std::string> dog_names;
+    // ИСПРАВЛЕНИЕ: используем TaggedHasher для Dog::Id
+    std::unordered_map<model::Dog::Id, std::string, util::TaggedHasher<model::Dog::Id>> dog_names;
+    
+    GameState() = default;
+    
+    GameState(const GameState& other) = default;
+    GameState& operator=(const GameState& other) = default;
     
     bool operator==(const GameState& other) const {
         if (dogs.size() != other.dogs.size()) return false;
@@ -167,7 +173,7 @@ public:
         state_.dog_names[dog_id] = name;
         
         // Генерируем токен
-        std::string token = "token" + std::to_string(dog_id);
+        std::string token = "token" + std::to_string(*dog_id);
         state_.tokens[token] = dog_id;
         
         return token;
