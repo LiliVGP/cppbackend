@@ -10,7 +10,6 @@
 #include <memory>
 #include <sstream>
 #include <unordered_map>
-#include <algorithm>
 
 #include <boost/asio.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -60,6 +59,7 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
+        // ✅ Используем pair.first / pair.second вместо structured bindings
         for (const auto& pair : state.tokens) {
             tokens_.push_back(pair.first);
             token_dog_ids_.push_back(pair.second);
@@ -68,17 +68,12 @@ public:
 
     GameState Restore() const {
         GameState state;
-        
-        // Восстанавливаем собак
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        
-        // Восстанавливаем токены
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
-        
         return state;
     }
 
@@ -185,13 +180,7 @@ public:
     }
 
     std::string JoinGame(const std::string& name, const std::string& map_id) {
-        // Находим максимальный ID среди существующих собак
-        uint32_t max_id = 0;
-        for (const auto& dog : state_.dogs) {
-            max_id = std::max(max_id, *dog.GetId());
-        }
-        uint32_t dog_id_int = max_id + 1;
-        
+        uint32_t dog_id_int = static_cast<uint32_t>(state_.dogs.size() + 1);
         model::Dog::Id dog_id{ dog_id_int };
         model::Dog dog{ dog_id, name, {0, 0}, 3 };
         dog.SetSpeed({ 2.0, 1.0 });
@@ -208,22 +197,15 @@ public:
             return { {"error", "Invalid token"} };
         }
 
-        uint32_t dog_id = it->second;
         json::object response;
         json::array players;
-        
-        // Ищем собаку с данным ID
         for (const auto& dog : state_.dogs) {
-            if (*dog.GetId() == dog_id) {
-                json::object player;
-                player["name"] = dog.GetName();
-                player["id"] = *dog.GetId();
-                player["pos"] = json::array{ dog.GetPosition().x, dog.GetPosition().y };
-                players.push_back(player);
-                break;
-            }
+            json::object player;
+            player["name"] = dog.GetName();
+            player["id"] = *dog.GetId();
+            player["pos"] = json::array{ dog.GetPosition().x, dog.GetPosition().y };
+            players.push_back(player);
         }
-        
         response["players"] = players;
         response["lostObjects"] = json::array{};
         return response;
