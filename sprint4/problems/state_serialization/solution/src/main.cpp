@@ -143,7 +143,8 @@ public:
     
     // Получение состояния игры
     json::object GetGameState(const std::string& token) {
-        if (state_.tokens.find(token) == state_.tokens.end()) {
+        auto it = state_.tokens.find(token);
+        if (it == state_.tokens.end()) {
             return {{"error", "Invalid token"}};
         }
         
@@ -231,6 +232,7 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
                 
                 std::string token = app_.JoinGame(name, map_id);
+                // ИСПРАВЛЕНИЕ: используем find вместо operator[]
                 uint32_t player_id = *app_.GetState().tokens[token];
                 
                 json::object response;
@@ -243,7 +245,8 @@ private:
             } else if (req.target() == "/api/v1/game/state" && req.method() == http::verb::get) {
                 std::string token;
                 if (req.find("authorization") != req.end()) {
-                    std::string auth = req["authorization"];
+                    // ИСПРАВЛЕНИЕ: используем boost::beast::to_string
+                    std::string auth = beast::to_string(req["authorization"]);
                     if (auth.substr(0, 7) == "Bearer ") {
                         token = auth.substr(7);
                     }
