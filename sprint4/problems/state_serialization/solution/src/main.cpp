@@ -69,12 +69,12 @@ public:
     GameState Restore() const {
         GameState state;
         
-        // Восстанавливаем собак в том же порядке, в котором они были сохранены
+        // Восстанавливаем собак
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
         
-        // Восстанавливаем токены и связываем их с собаками
+        // Восстанавливаем токены
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
         }
@@ -185,21 +185,20 @@ public:
     }
 
     std::string JoinGame(const std::string& name, const std::string& map_id) {
-        // Находим следующий свободный ID
-        uint32_t next_id = 1;
+        // Находим максимальный ID среди существующих собак
+        uint32_t max_id = 0;
         for (const auto& dog : state_.dogs) {
-            if (*dog.GetId() >= next_id) {
-                next_id = *dog.GetId() + 1;
-            }
+            max_id = std::max(max_id, *dog.GetId());
         }
+        uint32_t dog_id_int = max_id + 1;
         
-        model::Dog::Id dog_id{ next_id };
+        model::Dog::Id dog_id{ dog_id_int };
         model::Dog dog{ dog_id, name, {0, 0}, 3 };
         dog.SetSpeed({ 2.0, 1.0 });
         state_.dogs.push_back(dog);
 
-        std::string token = "token" + std::to_string(next_id);
-        state_.tokens[token] = next_id;
+        std::string token = "token" + std::to_string(dog_id_int);
+        state_.tokens[token] = dog_id_int;
         return token;
     }
 
