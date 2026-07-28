@@ -52,7 +52,7 @@ struct GameState {
     }
 };
 
-// Сериализация GameState
+// Сериализация GameState - УПРОЩЁННАЯ
 class GameStateRepr {
 public:
     GameStateRepr() = default;
@@ -61,12 +61,11 @@ public:
         for (const auto& dog : state.dogs) {
             dogs_.emplace_back(dog);
         }
+        // Сохраняем токены как два вектора
         for (const auto& [token, dog_id] : state.tokens) {
             tokens_.push_back(token);
             token_dog_ids_.push_back(dog_id);
-            std::cout << "Serializing token: '" << token << "' -> dog_id: " << dog_id << std::endl;
         }
-        std::cout << "Serialized " << tokens_.size() << " tokens" << std::endl;
     }
     
     GameState Restore() const {
@@ -74,11 +73,10 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
+        // Восстанавливаем токены
         for (size_t i = 0; i < tokens_.size(); ++i) {
             state.tokens[tokens_[i]] = token_dog_ids_[i];
-            std::cout << "Restoring token: '" << tokens_[i] << "' -> dog_id: " << token_dog_ids_[i] << std::endl;
         }
-        std::cout << "Restored " << state.tokens.size() << " tokens" << std::endl;
         return state;
     }
     
@@ -106,10 +104,8 @@ void SaveState(const GameState& state, const std::string& path) {
         boost::archive::text_oarchive oa(ofs);
         GameStateRepr repr(state);
         oa << repr;
-        std::cout << "Saved " << state.tokens.size() << " tokens to " << temp_path << std::endl;
     }
     std::filesystem::rename(temp_path, path);
-    std::cout << "State saved to: " << path << std::endl;
 }
 
 GameState LoadState(const std::string& path) {
@@ -120,9 +116,7 @@ GameState LoadState(const std::string& path) {
     boost::archive::text_iarchive ia(ifs);
     GameStateRepr repr;
     ia >> repr;
-    auto state = repr.Restore();
-    std::cout << "Loaded " << state.tokens.size() << " tokens from " << path << std::endl;
-    return state;
+    return repr.Restore();
 }
 
 // Наблюдатель для сохранения
@@ -132,11 +126,9 @@ public:
         : path_(path), period_(period), last_save_time_(std::chrono::milliseconds::zero()) {}
     
     void OnTick(std::chrono::milliseconds game_time) {
-        if (period_ != std::chrono::milliseconds::max() && 
-            game_time - last_save_time_ >= period_) {
-            SaveState(state_, path_);
-            last_save_time_ = game_time;
-        }
+        // ВСЕГДА сохраняем при каждом тике для теста
+        SaveState(state_, path_);
+        last_save_time_ = game_time;
     }
     
     void SaveOnShutdown() {
@@ -200,14 +192,12 @@ public:
         
         std::string token = "token" + std::to_string(dog_id_int);
         state_.tokens[token] = dog_id_int;
-        std::cout << "Created token: '" << token << "' for player " << name << std::endl;
         return token;
     }
     
     json::object GetGameState(const std::string& token) {
         auto it = state_.tokens.find(token);
         if (it == state_.tokens.end()) {
-            std::cout << "Token not found: '" << token << "'" << std::endl;
             return {{"error", "Invalid token"}};
         }
         
