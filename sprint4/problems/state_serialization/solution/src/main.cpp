@@ -36,12 +36,23 @@ using namespace std::literals;
 
 struct GameState {
     std::vector<model::Dog> dogs;
-    std::unordered_map<std::string, uint32_t> tokens;
+    // ✅ Храним токены как вектор пар — это гарантированно сериализуется
+    std::vector<std::pair<std::string, uint32_t>> tokens;
 
     GameState() = default;
 
     bool HasToken(const std::string& token) const {
-        return tokens.find(token) != tokens.end();
+        for (const auto& [t, id] : tokens) {
+            if (t == token) return true;
+        }
+        return false;
+    }
+
+    uint32_t GetDogId(const std::string& token) const {
+        for (const auto& [t, id] : tokens) {
+            if (t == token) return id;
+        }
+        return 0;
     }
 
     bool operator==(const GameState& other) const {
@@ -60,10 +71,8 @@ public:
             dogs_.emplace_back(dog);
         }
         for (const auto& pair : state.tokens) {
-            tokens_.push_back(pair.first);
-            token_dog_ids_.push_back(pair.second);
+            tokens_.push_back(pair);
         }
-        std::cout << "Serializing " << tokens_.size() << " tokens" << std::endl;
     }
 
     GameState Restore() const {
@@ -71,9 +80,8 @@ public:
         for (const auto& dog_repr : dogs_) {
             state.dogs.push_back(dog_repr.Restore());
         }
-        std::cout << "Restoring " << tokens_.size() << " tokens" << std::endl;
-        for (size_t i = 0; i < tokens_.size(); ++i) {
-            state.tokens[tokens_[i]] = token_dog_ids_[i];
+        for (const auto& pair : tokens_) {
+            state.tokens.push_back(pair);
         }
         return state;
     }
@@ -82,13 +90,11 @@ public:
     void serialize(Archive& ar, unsigned) {
         ar & dogs_;
         ar & tokens_;
-        ar & token_dog_ids_;
     }
 
 private:
     std::vector<serialization::DogRepr> dogs_;
-    std::vector<std::string> tokens_;
-    std::vector<uint32_t> token_dog_ids_;
+    std::vector<std::pair<std::string, uint32_t>> tokens_;
 };
 
 void SaveState(const GameState& state, const std::string& path) {
@@ -186,13 +192,12 @@ public:
         state_.dogs.push_back(dog);
 
         std::string token = "token" + std::to_string(dog_id_int);
-        state_.tokens[token] = dog_id_int;
+        state_.tokens.push_back({token, dog_id_int});
         return token;
     }
 
     json::object GetGameState(const std::string& token) {
-        auto it = state_.tokens.find(token);
-        if (it == state_.tokens.end()) {
+        if (!state_.HasToken(token)) {
             return {{"error", "Invalid token"}};
         }
 
@@ -253,7 +258,7 @@ private:
                 std::string map_id = body["mapId"].as_string().c_str();
 
                 std::string token = app_.JoinGame(name, map_id);
-                uint32_t player_id = app_.GetState().tokens[token];
+                uint32_t player_id = app_.GetState().GetDogId(token);
 
                 json::object response;
                 response["authToken"] = token;
