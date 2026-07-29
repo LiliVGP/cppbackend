@@ -96,7 +96,7 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
                 CHECK(books.saved_books.at(0).GetTitle() == title);
                 CHECK(books.saved_books.at(0).GetPublicationYear() == year);
                 
-                // Проверяем сохранённые теги
+                // Проверяем сохранённые теги через пары (book_id, tag)
                 REQUIRE(tags.saved_tags.size() == 2);
                 
                 // Проверяем, что book_id совпадает с id книги
@@ -106,9 +106,11 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
                 bool found_fantasy = false;
                 bool found_adventure = false;
                 for (const auto& [stored_book_id, stored_tag] : tags.saved_tags) {
-                    CHECK(stored_book_id == book_id);
-                    if (stored_tag == "fantasy") found_fantasy = true;
-                    if (stored_tag == "adventure") found_adventure = true;
+                    // Если book_id совпадает, то проверяем теги
+                    if (stored_book_id == book_id) {
+                        if (stored_tag == "fantasy") found_fantasy = true;
+                        if (stored_tag == "adventure") found_adventure = true;
+                    }
                 }
                 CHECK(found_fantasy);
                 CHECK(found_adventure);
