@@ -4,6 +4,9 @@
 #include "../src/domain/author.h"
 #include "../src/domain/book.h"
 #include "../src/domain/tag.h"
+#include <vector>
+#include <string>
+#include <tuple>
 
 namespace {
 
@@ -40,7 +43,7 @@ struct MockBookRepository : domain::BookRepository {
 };
 
 struct MockTagRepository : domain::TagRepository {
-    std::vector<std::tuple<std::string, std::string>> saved_tags;
+    std::vector<std::pair<std::string, std::string>> saved_tags;
     std::vector<std::string> deleted_book_tags;
     std::vector<std::string> book_tags_requests;
 
@@ -75,6 +78,7 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
             THEN("author with the specified name is saved to repository") {
                 REQUIRE(authors.saved_authors.size() == 1);
                 CHECK(authors.saved_authors.at(0).GetName() == author_name);
+                CHECK(authors.saved_authors.at(0).GetId() != domain::AuthorId{});
             }
         }
 
@@ -92,10 +96,10 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
                 CHECK(books.saved_books.at(0).GetPublicationYear() == year);
                 
                 REQUIRE(tags.saved_tags.size() == 2);
-                CHECK(std::get<0>(tags.saved_tags[0]) == books.saved_books.at(0).GetId().ToString());
-                CHECK(std::get<1>(tags.saved_tags[0]) == "fantasy");
-                CHECK(std::get<0>(tags.saved_tags[1]) == books.saved_books.at(0).GetId().ToString());
-                CHECK(std::get<1>(tags.saved_tags[1]) == "adventure");
+                CHECK(tags.saved_tags[0].first == books.saved_books.at(0).GetId().ToString());
+                CHECK(tags.saved_tags[0].second == "fantasy");
+                CHECK(tags.saved_tags[1].first == books.saved_books.at(0).GetId().ToString());
+                CHECK(tags.saved_tags[1].second == "adventure");
             }
         }
 
