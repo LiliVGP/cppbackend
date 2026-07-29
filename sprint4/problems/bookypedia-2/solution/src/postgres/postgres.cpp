@@ -1,6 +1,7 @@
 #include "postgres.h"
 
 #include <pqxx/zview.hxx>
+#include <pqxx/result.hxx>  // Добавляем для работы с result
 #include <sstream>
 
 namespace postgres {
@@ -79,9 +80,12 @@ std::vector<std::string> TagRepositoryImpl::GetBookTags(const std::string& book_
     pqxx::work work{connection_};
     auto query = "SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag ASC";
     auto res = work.exec_params(query, book_id);
-    for (const auto& row : res) {
-        result.push_back(row[0].as<std::string>());
+    
+    // Исправляем итерацию по результату
+    for (size_t i = 0; i < res.size(); ++i) {
+        result.push_back(res[i][0].as<std::string>());
     }
+    
     return result;
 }
 
