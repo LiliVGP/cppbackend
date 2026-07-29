@@ -176,7 +176,7 @@ int main(int argc, const char* argv[]) {
                         auto isbn_int = get_int(payload, "ISBN");
                         if (isbn_int) {
                             isbn_str = std::to_string(*isbn_int);
-                            // Дополняем до 13 символов если нужно
+                            // Дополняем пробелами до 13 символов
                             while (isbn_str.length() < 13) {
                                 isbn_str += ' ';
                             }
@@ -198,7 +198,7 @@ int main(int argc, const char* argv[]) {
                         }
                         w.commit();
                         success = true;
-                    } catch (const pqxx::sql_error& e) {
+                    } catch (const pqxx::sql_error&) {
                         // Ошибка уникальности или другая ошибка БД
                         success = false;
                     } catch (const std::exception&) {
@@ -218,7 +218,19 @@ int main(int argc, const char* argv[]) {
                     for (auto [id, title, author, year, isbn] : 
                          r.query<int, std::string, std::string, int, std::optional<std::string>>(query)) {
                         
-                        std::string isbn_str = isbn ? escape_json(*isbn) : "null";
+                        // ВАЖНО: ISBN всегда выводим как строку в кавычках
+                        std::string isbn_str;
+                        if (isbn) {
+                            // Убираем пробелы для вывода
+                            std::string trimmed = *isbn;
+                            while (!trimmed.empty() && trimmed.back() == ' ') {
+                                trimmed.pop_back();
+                            }
+                            isbn_str = "\"" + escape_json(trimmed) + "\"";
+                        } else {
+                            isbn_str = "null";
+                        }
+                        
                         std::string entry = 
                             "{\"id\":" + std::to_string(id) + 
                             ",\"title\":\"" + escape_json(title) + 
