@@ -4,6 +4,7 @@
 #include "../src/domain/author.h"
 #include "../src/domain/book.h"
 #include "../src/domain/tag.h"
+
 #include <vector>
 #include <string>
 #include <utility>
@@ -43,13 +44,13 @@ struct MockBookRepository : domain::BookRepository {
 };
 
 struct MockTagRepository : domain::TagRepository {
-    // Храним пары (book_id, tag)
+    // Явно используем вектор пар
     std::vector<std::pair<std::string, std::string>> saved_tags;
     std::vector<std::string> deleted_book_tags;
     std::vector<std::string> book_tags_requests;
 
     void Save(const std::string& book_id, const std::string& tag) override {
-        saved_tags.push_back({book_id, tag});
+        saved_tags.push_back(std::make_pair(book_id, tag));
     }
     void DeleteBookTags(const std::string& book_id) override {
         deleted_book_tags.push_back(book_id);
@@ -87,26 +88,27 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
             const auto author_id = "123";
             const auto title = "Harry Potter";
             const auto year = 1997;
-            const auto tags = std::vector<std::string>{"fantasy", "adventure"};
-            
+            const std::vector<std::string> tags = {"fantasy", "adventure"};
+
             use_cases.AddBookWithTags(author_id, title, year, tags);
 
             THEN("book and tags are saved") {
                 REQUIRE(books.saved_books.size() == 1);
                 CHECK(books.saved_books.at(0).GetTitle() == title);
                 CHECK(books.saved_books.at(0).GetPublicationYear() == year);
-                
-                // Проверяем сохранённые теги через пары (book_id, tag)
+
+                const auto book_id = books.saved_books.at(0).GetId().ToString();
+
+                // Проверяем количество сохранённых тегов
                 REQUIRE(tags.saved_tags.size() == 2);
-                
-                // Проверяем, что book_id совпадает с id книги
-                auto book_id = books.saved_books.at(0).GetId().ToString();
-                
-                // Проверяем, что теги сохранены правильно
+
+                // Проверяем, что оба тега привязаны к правильной книге
                 bool found_fantasy = false;
                 bool found_adventure = false;
-                for (const auto& [stored_book_id, stored_tag] : tags.saved_tags) {
-                    // Если book_id совпадает, то проверяем теги
+                for (std::size_t i = 0; i < tags.saved_tags.size(); ++i) {
+                    const auto& pair = tags.saved_tags[i];
+                    const auto& stored_book_id = pair.first;
+                    const auto& stored_tag = pair.second;
                     if (stored_book_id == book_id) {
                         if (stored_tag == "fantasy") found_fantasy = true;
                         if (stored_tag == "adventure") found_adventure = true;
