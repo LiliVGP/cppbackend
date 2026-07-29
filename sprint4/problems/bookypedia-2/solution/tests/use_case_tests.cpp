@@ -64,7 +64,7 @@ struct MockTagRepository2 : domain::TagRepository {
 struct Fixture {
     MockAuthorRepository authors;
     MockBookRepository books;
-    MockTagRepository tags;
+    MockTagRepository2 tags;
 };
 
 }  // namespace
