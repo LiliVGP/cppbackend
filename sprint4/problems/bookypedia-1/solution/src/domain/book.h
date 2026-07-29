@@ -2,6 +2,7 @@
 #include <string>
 
 #include "../util/tagged_uuid.h"
+#include "author.h"  // Добавляем include для AuthorId
 
 namespace domain {
 
@@ -10,7 +11,6 @@ namespace domain {
     }  // namespace detail
 
     using BookId = util::TaggedUUID<detail::BookTag>;
-    using AuthorId = util::TaggedUUID<detail::AuthorTag>;  // Добавляем AuthorId
 
     class Book {
     public:
