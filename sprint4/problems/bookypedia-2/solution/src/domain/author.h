@@ -34,6 +34,8 @@ private:
 class AuthorRepository {
 public:
     virtual void Save(const Author& author) = 0;
+    virtual void Delete(const std::string& author_id) = 0;
+    virtual void UpdateName(const std::string& author_id, const std::string& new_name) = 0;
 
 protected:
     ~AuthorRepository() = default;
