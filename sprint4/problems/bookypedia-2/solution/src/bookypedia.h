@@ -6,19 +6,19 @@
 
 namespace bookypedia {
 
-    struct AppConfig {
-        std::string db_url;
-    };
+struct AppConfig {
+    std::string db_url;
+};
 
-    class Application {
-    public:
-        explicit Application(const AppConfig& config);
+class Application {
+public:
+    explicit Application(const AppConfig& config);
 
-        void Run();
+    void Run();
 
-    private:
-        postgres::Database db_;
-        app::UseCasesImpl use_cases_{ db_.GetAuthors(), db_.GetBooks() };
-    };
+private:
+    postgres::Database db_;
+    app::UseCasesImpl use_cases_{db_.GetAuthors(), db_.GetBooks(), db_.GetTags()};
+};
 
 }  // namespace bookypedia
