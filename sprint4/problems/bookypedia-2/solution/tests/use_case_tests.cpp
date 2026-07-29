@@ -43,14 +43,14 @@ struct MockBookRepository : domain::BookRepository {
     }
 };
 
-struct MockTagRepository2 : domain::TagRepository {
-    // ПЕРЕИМЕНОВАНО: теперь поле называется stored_tag_pairs
-    std::vector<std::pair<std::string, std::string>> stored_tag_pairs;
+// СОЗДАЁМ НОВЫЙ КЛАСС С УНИКАЛЬНЫМ ИМЕНЕМ
+struct MockTagRepo : domain::TagRepository {
+    std::vector<std::pair<std::string, std::string>> tag_pairs;   // новое имя поля
     std::vector<std::string> deleted_book_tags;
     std::vector<std::string> book_tags_requests;
 
     void Save(const std::string& book_id, const std::string& tag) override {
-        stored_tag_pairs.push_back(std::make_pair(book_id, tag));
+        tag_pairs.push_back({book_id, tag});
     }
     void DeleteBookTags(const std::string& book_id) override {
         deleted_book_tags.push_back(book_id);
@@ -64,7 +64,7 @@ struct MockTagRepository2 : domain::TagRepository {
 struct Fixture {
     MockAuthorRepository authors;
     MockBookRepository books;
-    MockTagRepository2 tags;
+    MockTagRepo tags;   // используем новый класс
 };
 
 }  // namespace
@@ -99,13 +99,12 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
 
                 const auto book_id = books.saved_books.at(0).GetId().ToString();
 
-                // ИСПОЛЬЗУЕМ НОВОЕ ИМЯ ПОЛЯ
-                REQUIRE(tags.stored_tag_pairs.size() == 2);
+                // ИСПОЛЬЗУЕМ НОВОЕ ПОЛЕ tag_pairs
+                REQUIRE(tags.tag_pairs.size() == 2);
 
                 bool found_fantasy = false;
                 bool found_adventure = false;
-                for (std::size_t i = 0; i < tags.stored_tag_pairs.size(); ++i) {
-                    const auto& pair = tags.stored_tag_pairs[i];
+                for (const auto& pair : tags.tag_pairs) {
                     const auto& stored_book_id = pair.first;
                     const auto& stored_tag = pair.second;
                     if (stored_book_id == book_id) {
