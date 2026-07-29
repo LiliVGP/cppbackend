@@ -23,6 +23,9 @@ add_library(libbookypedia STATIC
 	src/domain/book.cpp
 	src/domain/book.h
 	src/domain/book_fwd.h
+	src/domain/tag.cpp
+	src/domain/tag.h
+	src/domain/tag_fwd.h
 	src/util/tagged.h
 	src/util/tagged_uuid.cpp
 	src/util/tagged_uuid.h
