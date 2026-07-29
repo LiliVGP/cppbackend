@@ -11,7 +11,6 @@
 
 namespace {
 
-// Мок для авторов
 struct MockAuthorRepository : domain::AuthorRepository {
     std::vector<domain::Author> saved_authors;
     std::vector<std::string> deleted_authors;
@@ -28,7 +27,6 @@ struct MockAuthorRepository : domain::AuthorRepository {
     }
 };
 
-// Мок для книг
 struct MockBookRepository : domain::BookRepository {
     std::vector<domain::Book> saved_books;
     std::vector<std::string> deleted_books;
@@ -45,36 +43,36 @@ struct MockBookRepository : domain::BookRepository {
     }
 };
 
-// Мок для тегов - САМЫЙ ПРОСТОЙ ВАРИАНТ
-struct MockTagRepo : domain::TagRepository {
-    // Используем простой вектор пар
-    std::vector<std::pair<std::string, std::string>> saved;
-    std::vector<std::string> deleted;
-    std::vector<std::string> requests;
-
-    void Save(const std::string& book_id, const std::string& tag) override {
-        saved.push_back({book_id, tag});
-    }
-    void DeleteBookTags(const std::string& book_id) override {
-        deleted.push_back(book_id);
-    }
-    std::vector<std::string> GetBookTags(const std::string& book_id) override {
-        requests.push_back(book_id);
-        return {};
-    }
-};
-
 struct Fixture {
     MockAuthorRepository authors;
     MockBookRepository books;
-    MockTagRepo tags;
 };
 
 }  // namespace
 
 SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
+    // Создаём мок для тегов прямо внутри сценария, чтобы избежать конфликтов
+    struct MockTagRepo : domain::TagRepository {
+        std::vector<std::pair<std::string, std::string>> saved_data;
+        std::vector<std::string> deleted_data;
+        std::vector<std::string> requests;
+
+        void Save(const std::string& book_id, const std::string& tag) override {
+            saved_data.push_back({book_id, tag});
+        }
+        void DeleteBookTags(const std::string& book_id) override {
+            deleted_data.push_back(book_id);
+        }
+        std::vector<std::string> GetBookTags(const std::string& book_id) override {
+            requests.push_back(book_id);
+            return {};
+        }
+    };
+
+    MockTagRepo tags_mock;
+
     GIVEN("Use cases") {
-        app::UseCasesImpl use_cases{authors, books, tags};
+        app::UseCasesImpl use_cases{authors, books, tags_mock};
 
         WHEN("Adding an author") {
             const auto author_name = "Joanne Rowling";
@@ -102,12 +100,12 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
 
                 const auto book_id = books.saved_books.at(0).GetId().ToString();
 
-                // Проверяем сохранённые теги
-                REQUIRE(tags.saved.size() == 2);
+                // Используем saved_data, поле внутри локального мока
+                REQUIRE(tags_mock.saved_data.size() == 2);
 
                 bool found_fantasy = false;
                 bool found_adventure = false;
-                for (const auto& pair : tags.saved) {
+                for (const auto& pair : tags_mock.saved_data) {
                     const auto& stored_book_id = pair.first;
                     const auto& stored_tag = pair.second;
                     if (stored_book_id == book_id) {
