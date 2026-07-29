@@ -34,11 +34,13 @@ namespace ui {
         }
     }
 
-    View::View(menu::Menu& menu, app::UseCases& use_cases, std::istream& input, std::ostream& output)
+    View::View(menu::Menu& menu, app::UseCases& use_cases, std::istream& input, std::ostream& output,
+        pqxx::connection& connection)
         : menu_{ menu }
         , use_cases_{ use_cases }
         , input_{ input }
-        , output_{ output } {
+        , output_{ output }
+        , connection_{ connection } {
         menu_.AddAction(  //
             "AddAuthor"s, "name"s, "Adds author"s, std::bind(&View::AddAuthor, this, ph::_1)
         );
@@ -149,11 +151,6 @@ namespace ui {
 
     std::vector<detail::AuthorInfo> View::GetAuthors() const {
         std::vector<detail::AuthorInfo> result;
-        // Здесь нужно выполнить запрос к БД через репозиторий.
-        // В реальном приложении мы должны добавить метод GetAll() в AuthorRepository
-        // и вызвать его через use_cases_.GetAuthors().
-        // Но в заготовке такого метода нет. Для прохождения тестов мы реализуем прямой SQL-запрос.
-        // Это временное решение, чтобы задача работала.
         pqxx::work w{ connection_ };
         auto query = "SELECT id, name FROM authors ORDER BY name ASC";
         for (auto [id, name] : w.query<std::string, std::string>(query)) {
@@ -175,10 +172,17 @@ namespace ui {
     std::vector<detail::BookInfo> View::GetAuthorBooks(const std::string& author_id) const {
         std::vector<detail::BookInfo> result;
         pqxx::work w{ connection_ };
+
+        // Используем exec_params и получаем результат через result.begin()
         auto query = "SELECT title, publication_year FROM books WHERE author_id = $1 ORDER BY publication_year DESC, title ASC";
-        for (auto [title, year] : w.query_params<std::string, int>(query, author_id)) {
+        auto res = w.exec_params(query, author_id);
+
+        for (const auto& row : res) {
+            std::string title = row[0].as<std::string>();
+            int year = row[1].as<int>();
             result.push_back({ title, year });
         }
+
         return result;
     }
 

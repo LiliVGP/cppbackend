@@ -56,7 +56,7 @@ namespace ui {
         app::UseCases& use_cases_;
         std::istream& input_;
         std::ostream& output_;
-        pqxx::connection& connection_; // Добавляем доступ к БД
+        pqxx::connection& connection_;
     };
 
 }  // namespace ui
