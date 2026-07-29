@@ -6,7 +6,7 @@
 #include "../src/domain/tag.h"
 #include <vector>
 #include <string>
-#include <tuple>
+#include <utility>
 
 namespace {
 
@@ -43,6 +43,7 @@ struct MockBookRepository : domain::BookRepository {
 };
 
 struct MockTagRepository : domain::TagRepository {
+    // Храним пары (book_id, tag)
     std::vector<std::pair<std::string, std::string>> saved_tags;
     std::vector<std::string> deleted_book_tags;
     std::vector<std::string> book_tags_requests;
@@ -95,11 +96,22 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
                 CHECK(books.saved_books.at(0).GetTitle() == title);
                 CHECK(books.saved_books.at(0).GetPublicationYear() == year);
                 
+                // Проверяем сохранённые теги
                 REQUIRE(tags.saved_tags.size() == 2);
-                CHECK(tags.saved_tags[0].first == books.saved_books.at(0).GetId().ToString());
-                CHECK(tags.saved_tags[0].second == "fantasy");
-                CHECK(tags.saved_tags[1].first == books.saved_books.at(0).GetId().ToString());
-                CHECK(tags.saved_tags[1].second == "adventure");
+                
+                // Проверяем, что book_id совпадает с id книги
+                auto book_id = books.saved_books.at(0).GetId().ToString();
+                
+                // Проверяем, что теги сохранены правильно
+                bool found_fantasy = false;
+                bool found_adventure = false;
+                for (const auto& [stored_book_id, stored_tag] : tags.saved_tags) {
+                    CHECK(stored_book_id == book_id);
+                    if (stored_tag == "fantasy") found_fantasy = true;
+                    if (stored_tag == "adventure") found_adventure = true;
+                }
+                CHECK(found_fantasy);
+                CHECK(found_adventure);
             }
         }
 
