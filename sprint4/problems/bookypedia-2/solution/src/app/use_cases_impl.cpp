@@ -2,34 +2,78 @@
 
 #include "../domain/author.h"
 #include "../domain/book.h"
+#include "../domain/tag.h"
 #include <pqxx/pqxx>
 #include <algorithm>
 
 namespace app {
-    using namespace domain;
+using namespace domain;
 
-    void UseCasesImpl::AddAuthor(const std::string& name) {
-        authors_.Save({ AuthorId::New(), name });
-    }
+void UseCasesImpl::AddAuthor(const std::string& name) {
+    authors_.Save({AuthorId::New(), name});
+}
 
-    std::vector<AuthorInfo> UseCasesImpl::GetAuthors() const {
-        std::vector<AuthorInfo> result;
-        // Здесь нужно реализовать получение авторов через репозиторий
-        // Но в текущей реализации репозиторий имеет только Save
-        // Для полноценной работы нужно добавить GetAll() в репозиторий
-        return result;
-    }
+std::vector<AuthorInfo> UseCasesImpl::GetAuthors() const {
+    std::vector<AuthorInfo> result;
+    // Этот метод будет реализован через репозиторий с прямым SQL
+    // В реальном приложении нужно добавить GetAll() в репозиторий
+    return result;
+}
 
-    void UseCasesImpl::AddBook(const std::string& author_id, const std::string& title, int publication_year) {
-        books_.Save({ BookId::New(), AuthorId::FromString(author_id), title, publication_year });
-    }
+std::optional<AuthorInfo> UseCasesImpl::FindAuthorByName(const std::string& name) const {
+    // Будет реализовано через репозиторий
+    return std::nullopt;
+}
 
-    std::vector<BookInfo> UseCasesImpl::GetBooks() const {
-        return {};
-    }
+void UseCasesImpl::DeleteAuthor(const std::string& author_id) {
+    authors_.Delete(author_id);
+}
 
-    std::vector<BookInfo> UseCasesImpl::GetAuthorBooks(const std::string& author_id) const {
-        return {};
+void UseCasesImpl::EditAuthor(const std::string& author_id, const std::string& new_name) {
+    authors_.UpdateName(author_id, new_name);
+}
+
+void UseCasesImpl::AddBook(const std::string& author_id, const std::string& title, int publication_year) {
+    books_.Save({BookId::New(), AuthorId::FromString(author_id), title, publication_year});
+}
+
+void UseCasesImpl::AddBookWithTags(const std::string& author_id, const std::string& title, int publication_year, const std::vector<std::string>& tags) {
+    // Сохраняем книгу
+    auto book_id = BookId::New();
+    books_.Save({book_id, AuthorId::FromString(author_id), title, publication_year});
+    
+    // Сохраняем теги
+    for (const auto& tag : tags) {
+        tags_.Save(book_id.ToString(), tag);
     }
+}
+
+std::vector<BookInfo> UseCasesImpl::GetBooks() const {
+    // Будет реализовано через репозиторий
+    return {};
+}
+
+std::vector<BookInfo> UseCasesImpl::GetAuthorBooks(const std::string& author_id) const {
+    // Будет реализовано через репозиторий
+    return {};
+}
+
+std::optional<BookDetail> UseCasesImpl::GetBookDetail(const std::string& book_id) const {
+    // Будет реализовано через репозиторий
+    return std::nullopt;
+}
+
+std::vector<BookInfo> UseCasesImpl::FindBooksByTitle(const std::string& title) const {
+    // Будет реализовано через репозиторий
+    return {};
+}
+
+void UseCasesImpl::DeleteBook(const std::string& book_id) {
+    books_.Delete(book_id);
+}
+
+void UseCasesImpl::EditBook(const std::string& book_id, const std::string& new_title, int new_year, const std::vector<std::string>& tags) {
+    // Будет реализовано через репозиторий
+}
 
 }  // namespace app
