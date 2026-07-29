@@ -51,6 +51,7 @@ public:
          pqxx::connection& connection);
 
 private:
+    bool ShowHelp(std::istream&) const;  // Добавляем объявление
     bool AddAuthor(std::istream& cmd_input) const;
     bool AddBook(std::istream& cmd_input) const;
     bool ShowAuthors() const;
