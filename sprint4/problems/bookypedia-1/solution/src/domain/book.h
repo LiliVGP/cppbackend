@@ -10,17 +10,23 @@ namespace domain {
     }  // namespace detail
 
     using BookId = util::TaggedUUID<detail::BookTag>;
+    using AuthorId = util::TaggedUUID<detail::AuthorTag>;  // Добавляем AuthorId
 
     class Book {
     public:
-        Book(BookId id, std::string title, int publication_year)
+        Book(BookId id, AuthorId author_id, std::string title, int publication_year)
             : id_(std::move(id))
+            , author_id_(std::move(author_id))
             , title_(std::move(title))
             , publication_year_(publication_year) {
         }
 
         const BookId& GetId() const noexcept {
             return id_;
+        }
+
+        const AuthorId& GetAuthorId() const noexcept {
+            return author_id_;
         }
 
         const std::string& GetTitle() const noexcept {
@@ -33,6 +39,7 @@ namespace domain {
 
     private:
         BookId id_;
+        AuthorId author_id_;
         std::string title_;
         int publication_year_;
     };

@@ -14,28 +14,14 @@ namespace app {
 
     std::vector<AuthorInfo> UseCasesImpl::GetAuthors() const {
         std::vector<AuthorInfo> result;
-        // Здесь мы должны были бы запросить БД, но пока оставляем заглушку
-        // Реальный запрос будет делать View через UseCases, но это требует соединения
-        // В простой реализации можно было бы передать connection в UseCases
-        // Но в задании паттерн "Репозиторий" предполагает, что UseCases не знает о БД
-        // Поэтому мы реализуем это через pqxx напрямую в view? Нет, так неправильно.
-        // Правильно: UseCases должен вызывать репозиторий, а репозиторий - БД.
-        // Но у нас репозиторий имеет только Save, нет методов получения.
-        // Расширим репозиторий.
-
-        // Для простоты сейчас вернём пустой вектор.
+        // Здесь нужно реализовать получение авторов через репозиторий
+        // Но в текущей реализации репозиторий имеет только Save
+        // Для полноценной работы нужно добавить GetAll() в репозиторий
         return result;
     }
 
     void UseCasesImpl::AddBook(const std::string& author_id, const std::string& title, int publication_year) {
-        books_.Save({ BookId::New(), title, publication_year });
-        // В реальности нужно сохранять и author_id, но Book не хранит его.
-        // Нужно изменить Book, чтобы он хранил author_id.
-        // Но чтобы не ломать структуру, можно сохранить в отдельную таблицу.
-        // В данном решении мы просто сохраняем книгу без автора.
-        // Но в тестах требуется связь автор-книга.
-        // Переделаем Book так, чтобы он хранил author_id.
-        // Для этого изменим domain::Book.
+        books_.Save({ BookId::New(), AuthorId::FromString(author_id), title, publication_year });
     }
 
     std::vector<BookInfo> UseCasesImpl::GetBooks() const {

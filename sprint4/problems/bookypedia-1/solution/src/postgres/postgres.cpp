@@ -26,7 +26,7 @@ INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $
 ON CONFLICT (id) DO UPDATE SET author_id=$2, title=$3, publication_year=$4;
 )"_zv,
 book.GetId().ToString(),
-/* author_id */ "", // Эту часть мы вынесем в UseCases, т.к. Book не хранит author_id
+book.GetAuthorId().ToString(),
 book.GetTitle(),
 book.GetPublicationYear());
         work.commit();
