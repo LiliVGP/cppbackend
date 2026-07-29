@@ -43,7 +43,7 @@ struct MockBookRepository : domain::BookRepository {
     }
 };
 
-struct MockTagRepository : domain::TagRepository {
+struct MockTagRepository2 : domain::TagRepository {
     // ПЕРЕИМЕНОВАНО: теперь поле называется stored_tag_pairs
     std::vector<std::pair<std::string, std::string>> stored_tag_pairs;
     std::vector<std::string> deleted_book_tags;
