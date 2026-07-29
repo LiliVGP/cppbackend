@@ -45,8 +45,7 @@ View::View(menu::Menu& menu, app::UseCases& use_cases, std::istream& input, std:
     , input_{input}
     , output_{output}
     , connection_{connection} {
-    menu_.AddAction("Help"s, {}, "Show instructions"s, std::bind(&View::ShowHelp, this, ph::_1));
-    menu_.AddAction("Exit"s, {}, "Exit program"s, [this](std::istream&) { return false; });
+    // Добавляем только команды, специфичные для книг и авторов
     menu_.AddAction("AddAuthor"s, "name"s, "Adds author"s, std::bind(&View::AddAuthor, this, ph::_1));
     menu_.AddAction("AddBook"s, "<pub year> <title>"s, "Adds book"s, std::bind(&View::AddBook, this, ph::_1));
     menu_.AddAction("ShowAuthors"s, {}, "Show authors"s, std::bind(&View::ShowAuthors, this));
@@ -57,11 +56,6 @@ View::View(menu::Menu& menu, app::UseCases& use_cases, std::istream& input, std:
     menu_.AddAction("EditAuthor"s, "name"s, "Edit author"s, std::bind(&View::EditAuthor, this, ph::_1));
     menu_.AddAction("DeleteBook"s, "title"s, "Delete book"s, std::bind(&View::DeleteBook, this, ph::_1));
     menu_.AddAction("EditBook"s, "title"s, "Edit book"s, std::bind(&View::EditBook, this, ph::_1));
-}
-
-bool View::ShowHelp(std::istream&) const {
-    menu_.ShowInstructions();
-    return true;
 }
 
 bool View::AddAuthor(std::istream& cmd_input) const {
@@ -566,12 +560,12 @@ std::vector<detail::BookInfo> View::GetAuthorBooks(const std::string& author_id)
         "WHERE b.author_id = $1 "
         "ORDER BY b.publication_year ASC, b.title ASC";
     auto res = w.exec_params(query, author_id);
-    for (size_t i = 0; i < res.size(); ++i) {
-        std::string id = res[i][0].as<std::string>();
-        std::string title = res[i][1].as<std::string>();
-        int year = res[i][2].as<int>();
-        std::string author_name = res[i][3].as<std::string>();
-        std::string author_id2 = res[i][4].as<std::string>();
+    for (const auto& row : res) {
+        std::string id = row[0].as<std::string>();
+        std::string title = row[1].as<std::string>();
+        int year = row[2].as<int>();
+        std::string author_name = row[3].as<std::string>();
+        std::string author_id2 = row[4].as<std::string>();
         result.push_back({id, title, year, author_name, author_id2});
     }
     return result;
@@ -596,8 +590,8 @@ std::optional<detail::BookDetail> View::GetBookDetail(const std::string& book_id
     // Получаем теги
     auto tags_query = "SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag ASC";
     auto tags_res = w.exec_params(tags_query, book_id);
-    for (size_t i = 0; i < tags_res.size(); ++i) {
-        detail.tags.push_back(tags_res[i][0].as<std::string>());
+    for (const auto& row : tags_res) {
+        detail.tags.push_back(row[0].as<std::string>());
     }
     
     return detail;
@@ -612,12 +606,12 @@ std::vector<detail::BookInfo> View::FindBooksByTitle(const std::string& title) c
         "WHERE b.title = $1 "
         "ORDER BY b.title ASC, a.name ASC, b.publication_year ASC";
     auto res = w.exec_params(query, title);
-    for (size_t i = 0; i < res.size(); ++i) {
-        std::string id = res[i][0].as<std::string>();
-        std::string title2 = res[i][1].as<std::string>();
-        int year = res[i][2].as<int>();
-        std::string author_name = res[i][3].as<std::string>();
-        std::string author_id = res[i][4].as<std::string>();
+    for (const auto& row : res) {
+        std::string id = row[0].as<std::string>();
+        std::string title2 = row[1].as<std::string>();
+        int year = row[2].as<int>();
+        std::string author_name = row[3].as<std::string>();
+        std::string author_id = row[4].as<std::string>();
         result.push_back({id, title2, year, author_name, author_id});
     }
     return result;
