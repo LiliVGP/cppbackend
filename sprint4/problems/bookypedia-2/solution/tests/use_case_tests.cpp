@@ -44,13 +44,13 @@ struct MockBookRepository : domain::BookRepository {
 };
 
 struct MockTagRepository : domain::TagRepository {
-    // Явно используем вектор пар
-    std::vector<std::pair<std::string, std::string>> saved_tags;
+    // ПЕРЕИМЕНОВАНО: теперь поле называется stored_tag_pairs
+    std::vector<std::pair<std::string, std::string>> stored_tag_pairs;
     std::vector<std::string> deleted_book_tags;
     std::vector<std::string> book_tags_requests;
 
     void Save(const std::string& book_id, const std::string& tag) override {
-        saved_tags.push_back(std::make_pair(book_id, tag));
+        stored_tag_pairs.push_back(std::make_pair(book_id, tag));
     }
     void DeleteBookTags(const std::string& book_id) override {
         deleted_book_tags.push_back(book_id);
@@ -99,14 +99,13 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
 
                 const auto book_id = books.saved_books.at(0).GetId().ToString();
 
-                // Проверяем количество сохранённых тегов
-                REQUIRE(tags.saved_tags.size() == 2);
+                // ИСПОЛЬЗУЕМ НОВОЕ ИМЯ ПОЛЯ
+                REQUIRE(tags.stored_tag_pairs.size() == 2);
 
-                // Проверяем, что оба тега привязаны к правильной книге
                 bool found_fantasy = false;
                 bool found_adventure = false;
-                for (std::size_t i = 0; i < tags.saved_tags.size(); ++i) {
-                    const auto& pair = tags.saved_tags[i];
+                for (std::size_t i = 0; i < tags.stored_tag_pairs.size(); ++i) {
+                    const auto& pair = tags.stored_tag_pairs[i];
                     const auto& stored_book_id = pair.first;
                     const auto& stored_tag = pair.second;
                     if (stored_book_id == book_id) {
