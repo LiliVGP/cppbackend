@@ -11,6 +11,7 @@
 
 namespace {
 
+// Мок для авторов
 struct MockAuthorRepository : domain::AuthorRepository {
     std::vector<domain::Author> saved_authors;
     std::vector<std::string> deleted_authors;
@@ -27,6 +28,7 @@ struct MockAuthorRepository : domain::AuthorRepository {
     }
 };
 
+// Мок для книг
 struct MockBookRepository : domain::BookRepository {
     std::vector<domain::Book> saved_books;
     std::vector<std::string> deleted_books;
@@ -43,20 +45,21 @@ struct MockBookRepository : domain::BookRepository {
     }
 };
 
-// СОЗДАЁМ НОВЫЙ КЛАСС С УНИКАЛЬНЫМ ИМЕНЕМ
+// Мок для тегов - САМЫЙ ПРОСТОЙ ВАРИАНТ
 struct MockTagRepo : domain::TagRepository {
-    std::vector<std::pair<std::string, std::string>> tag_pairs;   // новое имя поля
-    std::vector<std::string> deleted_book_tags;
-    std::vector<std::string> book_tags_requests;
+    // Используем простой вектор пар
+    std::vector<std::pair<std::string, std::string>> saved;
+    std::vector<std::string> deleted;
+    std::vector<std::string> requests;
 
     void Save(const std::string& book_id, const std::string& tag) override {
-        tag_pairs.push_back({book_id, tag});
+        saved.push_back({book_id, tag});
     }
     void DeleteBookTags(const std::string& book_id) override {
-        deleted_book_tags.push_back(book_id);
+        deleted.push_back(book_id);
     }
     std::vector<std::string> GetBookTags(const std::string& book_id) override {
-        book_tags_requests.push_back(book_id);
+        requests.push_back(book_id);
         return {};
     }
 };
@@ -64,7 +67,7 @@ struct MockTagRepo : domain::TagRepository {
 struct Fixture {
     MockAuthorRepository authors;
     MockBookRepository books;
-    MockTagRepo tags;   // используем новый класс
+    MockTagRepo tags;
 };
 
 }  // namespace
@@ -99,12 +102,12 @@ SCENARIO_METHOD(Fixture, "Book Adding with Tags") {
 
                 const auto book_id = books.saved_books.at(0).GetId().ToString();
 
-                // ИСПОЛЬЗУЕМ НОВОЕ ПОЛЕ tag_pairs
-                REQUIRE(tags.tag_pairs.size() == 2);
+                // Проверяем сохранённые теги
+                REQUIRE(tags.saved.size() == 2);
 
                 bool found_fantasy = false;
                 bool found_adventure = false;
-                for (const auto& pair : tags.tag_pairs) {
+                for (const auto& pair : tags.saved) {
                     const auto& stored_book_id = pair.first;
                     const auto& stored_tag = pair.second;
                     if (stored_book_id == book_id) {
