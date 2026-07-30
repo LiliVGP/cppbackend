@@ -66,9 +66,8 @@ namespace ui {
                 throw std::runtime_error("Empty name");
             }
             use_cases_.AddAuthor(std::move(name));
-            output_ << "Author added successfully" << std::endl;
         }
-        catch (const std::exception& e) {
+        catch (const std::exception&) {
             output_ << "Failed to add author"sv << std::endl;
         }
         return true;
@@ -76,6 +75,7 @@ namespace ui {
 
     bool View::AddBook(std::istream& cmd_input) const {
         try {
+            // Парсим год и название из команды
             std::string year_str;
             cmd_input >> year_str;
 
@@ -110,7 +110,7 @@ namespace ui {
                 author_id = *selected;
             }
             else {
-                // Проверяем существование автора в одной транзакции
+                // Проверяем существование автора
                 pqxx::work w{ connection_ };
                 auto res = w.exec_params("SELECT id FROM authors WHERE name = $1", author_name);
 
@@ -126,7 +126,7 @@ namespace ui {
                         throw std::runtime_error("Cancelled by user");
                     }
 
-                    // Добавляем автора в транзакции
+                    // Добавляем автора
                     use_cases_.AddAuthor(author_name);
 
                     // Получаем ID добавленного автора
@@ -149,9 +149,8 @@ namespace ui {
 
             // Добавляем книгу с тегами
             use_cases_.AddBookWithTags(author_id, title, publication_year, tags);
-            output_ << "Book added successfully" << std::endl;
         }
-        catch (const std::exception& e) {
+        catch (const std::exception&) {
             output_ << "Failed to add book"sv << std::endl;
         }
         return true;
@@ -217,7 +216,6 @@ namespace ui {
                 title = books[idx].title;
             }
 
-            // Сначала находим все книги с таким названием
             books = FindBooksByTitle(title);
             if (books.empty()) {
                 return true;
@@ -287,7 +285,6 @@ namespace ui {
             }
 
             use_cases_.DeleteAuthor(author_id);
-            output_ << "Author deleted successfully" << std::endl;
         }
         catch (const std::exception&) {
             output_ << "Failed to delete author"sv << std::endl;
@@ -329,7 +326,6 @@ namespace ui {
             }
 
             use_cases_.EditAuthor(author_id, new_name);
-            output_ << "Author edited successfully" << std::endl;
         }
         catch (const std::exception&) {
             output_ << "Failed to edit author"sv << std::endl;
@@ -386,7 +382,6 @@ namespace ui {
             }
 
             use_cases_.DeleteBook(books[idx].id);
-            output_ << "Book deleted successfully" << std::endl;
         }
         catch (const std::exception&) {
             output_ << "Failed to delete book"sv << std::endl;
@@ -491,9 +486,8 @@ namespace ui {
             auto new_tags = NormalizeTags(tags_str);
 
             use_cases_.EditBook(book_id, new_title, new_year, new_tags);
-            output_ << "Book edited successfully" << std::endl;
         }
-        catch (const std::exception& e) {
+        catch (const std::exception&) {
             output_ << "Failed to edit book"sv << std::endl;
         }
         return true;
@@ -654,7 +648,7 @@ namespace ui {
             }
         }
 
-        // Удаляем дубликаты
+        // Удаляем дубликаты и сортируем
         std::sort(result.begin(), result.end());
         result.erase(std::unique(result.begin(), result.end()), result.end());
 

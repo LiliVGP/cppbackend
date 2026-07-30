@@ -21,7 +21,6 @@ author.GetId().ToString(), author.GetName());
     }
 
     void AuthorRepositoryImpl::Delete(const std::string& author_id) {
-        // Каскадное удаление: сначала удаляем теги книг автора, потом книги, потом автора
         pqxx::work work{ connection_ };
 
         // Удаляем теги книг автора
