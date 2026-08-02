@@ -10,7 +10,8 @@ namespace app {
 using namespace domain;
 
 void UseCasesImpl::AddAuthor(const std::string& name) {
-    authors_.Save({AuthorId::New(), name});
+    AuthorId id = AuthorId::New();
+    authors_.Save({id, name});
 }
 
 std::vector<AuthorInfo> UseCasesImpl::GetAuthors() const {
@@ -32,15 +33,23 @@ void UseCasesImpl::EditAuthor(const std::string& author_id, const std::string& n
 }
 
 void UseCasesImpl::AddBook(const std::string& author_id, const std::string& title, int publication_year) {
-    books_.Save({BookId::New(), AuthorId::FromString(author_id), title, publication_year});
+    BookId book_id = BookId::New();
+    AuthorId author_id_obj = AuthorId::FromString(author_id);
+    books_.Save({book_id, author_id_obj, title, publication_year});
 }
 
 void UseCasesImpl::AddBookWithTags(const std::string& author_id, const std::string& title, int publication_year, const std::vector<std::string>& tags) {
-    auto book_id = BookId::New();
-    books_.Save({book_id, AuthorId::FromString(author_id), title, publication_year});
+    // Создаём ID книги
+    BookId book_id = BookId::New();
+    AuthorId author_id_obj = AuthorId::FromString(author_id);
     
+    // Сохраняем книгу
+    books_.Save({book_id, author_id_obj, title, publication_year});
+    
+    // Сохраняем теги
+    std::string book_id_str = book_id.ToString();
     for (const auto& tag : tags) {
-        tags_.Save(book_id.ToString(), tag);
+        tags_.Save(book_id_str, tag);
     }
 }
 
