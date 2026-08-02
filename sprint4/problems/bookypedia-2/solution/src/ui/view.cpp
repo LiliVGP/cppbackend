@@ -140,11 +140,13 @@ bool View::AddBook(std::istream& cmd_input) const {
         output_ << "Enter tags (comma separated):\n";
         std::string tags_input;
         std::getline(input_, tags_input);
+        
+        // Важно: не делаем trim всей строки, только нормализуем теги
         auto tags = NormalizeTags(tags_input);
 
         // Добавляем книгу с тегами
         use_cases_.AddBookWithTags(author_id, title, publication_year, tags);
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
         output_ << "Failed to add book"sv << std::endl;
     }
     return true;
@@ -610,11 +612,15 @@ std::vector<std::string> View::NormalizeTags(const std::string& tags_input) cons
         return result;
     }
     
+    // Разделяем по запятым
     std::vector<std::string> parts;
     boost::algorithm::split(parts, tags_input, boost::algorithm::is_any_of(","));
     
     for (auto& part : parts) {
+        // Удаляем пробелы в начале и конце
         boost::algorithm::trim(part);
+        
+        // Пропускаем пустые теги
         if (part.empty()) {
             continue;
         }
@@ -624,6 +630,7 @@ std::vector<std::string> View::NormalizeTags(const std::string& tags_input) cons
         std::string normalized = std::regex_replace(part, re, " ");
         boost::algorithm::trim(normalized);
         
+        // Проверяем длину тега (максимум 30 символов)
         if (!normalized.empty() && normalized.length() <= 30) {
             result.push_back(normalized);
         }
