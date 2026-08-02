@@ -23,6 +23,12 @@ void Menu::AddAction(std::string action_name, std::string args, std::string desc
 void Menu::Run() {
     std::string line;
     while (std::getline(input_, line)) {
+        // Игнорируем пустые строки
+        if (line.empty()) {
+            continue;
+        }
+        
+        // Проверяем, не является ли строка командой с тегами
         std::istringstream cmd_stream{std::move(line)};
         if (!ParseCommand(cmd_stream)) {
             break;
@@ -68,11 +74,14 @@ bool Menu::ParseCommand(std::istream& input) {
     try {
         std::string cmd;
         if (input >> cmd) {
+            // Проверяем, является ли команда известной
             if (const auto it = actions_.find(cmd); it != actions_.cend()) {
                 if (!it->second.handler(input)) {
                     return false;
                 }
             } else {
+                // Если команда не найдена, проверяем, не является ли это тегами
+                // Это может случиться, если теги были введены как команда
                 output_ << "Command '"sv << cmd << "' has not been found."sv << std::endl;
             }
         } else {
