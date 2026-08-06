@@ -257,9 +257,9 @@ private:
         json::value parsed;
         try {
             parsed = json::parse(req.body());
-        } catch (...) {
+        } catch (const std::exception& e) {
             SendError(send, http::status::bad_request, "invalidArgument",
-                      "Join game request parse error", req, false);
+                      "Join game request parse error: " + std::string(e.what()), req, false);
             return;
         }
 
@@ -382,9 +382,9 @@ private:
         json::value parsed;
         try {
             parsed = json::parse(req.body());
-        } catch (...) {
+        } catch (const std::exception& e) {
             SendError(send, http::status::bad_request, "invalidArgument",
-                      "Failed to parse action", req, false);
+                      "Failed to parse action: " + std::string(e.what()), req, false);
             return;
         }
 
@@ -440,9 +440,9 @@ private:
         json::value parsed;
         try {
             parsed = json::parse(req.body());
-        } catch (...) {
+        } catch (const std::exception& e) {
             SendError(send, http::status::bad_request, "invalidArgument",
-                      "Failed to parse tick request JSON", req, req.keep_alive());
+                      "Failed to parse tick request JSON: " + std::string(e.what()), req, req.keep_alive());
             return;
         }
 
@@ -523,9 +523,9 @@ private:
             try {
                 start = std::stoi(it->second);
                 if (start < 0) start = 0;
-            } catch (...) {
+            } catch (const std::exception& e) {
                 SendError(send, http::status::bad_request, "badRequest",
-                          "Invalid start parameter", req, false);
+                          "Invalid start parameter: " + std::string(e.what()), req, false);
                 return;
             }
         }
@@ -534,9 +534,9 @@ private:
             try {
                 max_items = std::stoi(it->second);
                 max_items_set = true;
-            } catch (...) {
+            } catch (const std::exception& e) {
                 SendError(send, http::status::bad_request, "badRequest",
-                          "Invalid maxItems parameter", req, false);
+                          "Invalid maxItems parameter: " + std::string(e.what()), req, false);
                 return;
             }
         }
