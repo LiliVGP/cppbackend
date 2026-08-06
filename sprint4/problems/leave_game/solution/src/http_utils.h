@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <algorithm>
+#include <cctype>
 
 namespace http_handler {
 namespace beast = boost::beast;
@@ -43,7 +45,8 @@ inline std::string GetMimeType(const std::string& extension) {
     };
 
     std::string ext = extension;
-    for (auto& c : ext) c = std::tolower(c);
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
 
     auto it = types.find(ext);
     return it != types.end() ? it->second : "application/octet-stream";
