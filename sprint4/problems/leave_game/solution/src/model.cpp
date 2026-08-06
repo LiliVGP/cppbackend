@@ -146,13 +146,9 @@ bool Game::IsValidTokenFormat(const std::string& token) {
         return false;
     }
 
-    for (char c : token) {
-        if (!std::isxdigit(static_cast<unsigned char>(c))) {
-            return false;
-        }
-    }
-
-    return true;
+    return std::all_of(token.begin(), token.end(), [](unsigned char c) {
+        return std::isxdigit(c);
+    });
 }
 
 const model::Map::Id* Game::GetMapIdByToken(const std::string& token) const noexcept {
